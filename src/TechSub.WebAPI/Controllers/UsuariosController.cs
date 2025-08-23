@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
-using TechSub.Aplicacao.DTOs;
-using TechSub.Dominio.Entidades;
-using TechSub.Dominio.Interfaces;
+using TechSub.Aplicacao.Requests;
+using TechSub.Aplicacao.Responses;
+using TechSub.Aplicacao.Interfaces;
 
 namespace TechSub.WebAPI.Controllers;
 
@@ -15,15 +15,15 @@ namespace TechSub.WebAPI.Controllers;
 [Authorize]
 public class UsuariosController : ControllerBase
 {
-    private readonly IUsuarioRepository _usuarioRepository;
+    private readonly IUsuarioService _usuarioService;
 
-    public UsuariosController(IUsuarioRepository usuarioRepository)
+    public UsuariosController(IUsuarioService usuarioService)
     {
-        _usuarioRepository = usuarioRepository;
+        _usuarioService = usuarioService;
     }
 
     /// <summary>
-    /// Obtém todos os usuários ativos (apenas admins)
+    /// Obtém todos os usuários (apenas admins)
     /// </summary>
     [HttpGet]
     [Authorize(Roles = "Admin")]
@@ -31,19 +31,9 @@ public class UsuariosController : ControllerBase
     {
         try
         {
-            var usuarios = await _usuarioRepository.ObterTodosAtivosAsync();
-            
-            var usuariosDto = usuarios.Select(u => new UsuarioDto
-            {
-                Id = u.Id,
-                Nome = u.Nome,
-                Email = u.Email,
-                AvatarUrl = u.AvatarUrl,
-                Provedor = u.Provedor,
-                DataUltimoLogin = u.DataUltimoLogin
-            });
-
-            return Ok(usuariosDto);
+            var userRole = User.FindFirst("role")?.Value;
+            var usuarios = await _usuarioService.ObterTodosAsync(userRole);
+            return Ok(usuarios);
         }
         catch (Exception ex)
         {
@@ -59,32 +49,17 @@ public class UsuariosController : ControllerBase
     {
         try
         {
-            var usuarioAtual = ObterUsuarioAtual();
+            var usuarioLogadoId = ObterUsuarioId();
+            var userRole = User.FindFirst("role")?.Value;
             
-            // Usuário só pode ver seus próprios dados, exceto admins
-            if (usuarioAtual.Id != id && !User.IsInRole("Admin"))
-            {
-                return Forbid("Você só pode acessar seus próprios dados");
-            }
-
-            var usuario = await _usuarioRepository.ObterPorIdAsync(id);
+            var usuario = await _usuarioService.ObterPorIdAsync(id, usuarioLogadoId, userRole);
             
             if (usuario == null)
             {
-                return NotFound(new { message = "Usuário não encontrado" });
+                return NotFound();
             }
 
-            var usuarioDto = new UsuarioDto
-            {
-                Id = usuario.Id,
-                Nome = usuario.Nome,
-                Email = usuario.Email,
-                AvatarUrl = usuario.AvatarUrl,
-                Provedor = usuario.Provedor,
-                DataUltimoLogin = usuario.DataUltimoLogin
-            };
-
-            return Ok(usuarioDto);
+            return Ok(usuario);
         }
         catch (Exception ex)
         {
@@ -96,54 +71,21 @@ public class UsuariosController : ControllerBase
     /// Atualiza dados do usuário
     /// </summary>
     [HttpPut("{id}")]
-    public async Task<IActionResult> Atualizar(Guid id, [FromBody] AtualizarUsuarioDto dto)
+    public async Task<IActionResult> Atualizar(Guid id, [FromBody] AtualizarUsuarioRequest dto)
     {
         try
         {
-            var usuarioAtual = ObterUsuarioAtual();
+            var usuarioLogadoId = ObterUsuarioId();
+            var userRole = User.FindFirst("role")?.Value;
             
-            // Usuário só pode atualizar seus próprios dados, exceto admins
-            if (usuarioAtual.Id != id && !User.IsInRole("Admin"))
-            {
-                return Forbid("Você só pode atualizar seus próprios dados");
-            }
-
-            var usuario = await _usuarioRepository.ObterPorIdAsync(id);
+            var usuario = await _usuarioService.AtualizarAsync(id, dto, usuarioLogadoId, userRole);
             
             if (usuario == null)
             {
-                return NotFound(new { message = "Usuário não encontrado" });
+                return NotFound();
             }
 
-            // Verifica se email já existe (se foi alterado)
-            if (dto.Email != usuario.Email)
-            {
-                var emailExiste = await _usuarioRepository.EmailExisteAsync(dto.Email);
-                if (emailExiste)
-                {
-                    return BadRequest(new { message = "Email já está em uso" });
-                }
-            }
-
-            // Atualiza dados
-            usuario.Nome = dto.Nome;
-            usuario.Email = dto.Email;
-            usuario.AvatarUrl = dto.AvatarUrl;
-            usuario.DataAtualizacao = DateTime.UtcNow;
-
-            await _usuarioRepository.AtualizarAsync(usuario);
-
-            var usuarioDto = new UsuarioDto
-            {
-                Id = usuario.Id,
-                Nome = usuario.Nome,
-                Email = usuario.Email,
-                AvatarUrl = usuario.AvatarUrl,
-                Provedor = usuario.Provedor,
-                DataUltimoLogin = usuario.DataUltimoLogin
-            };
-
-            return Ok(usuarioDto);
+            return Ok(usuario);
         }
         catch (Exception ex)
         {
@@ -159,26 +101,15 @@ public class UsuariosController : ControllerBase
     {
         try
         {
-            var usuarioAtual = ObterUsuarioAtual();
+            var usuarioLogadoId = ObterUsuarioId();
+            var userRole = User.FindFirst("role")?.Value;
             
-            // Usuário só pode desativar sua própria conta, exceto admins
-            if (usuarioAtual.Id != id && !User.IsInRole("Admin"))
-            {
-                return Forbid("Você só pode desativar sua própria conta");
-            }
-
-            var usuario = await _usuarioRepository.ObterPorIdAsync(id);
+            var result = await _usuarioService.RemoverAsync(id, usuarioLogadoId);
             
-            if (usuario == null)
+            if (!result)
             {
-                return NotFound(new { message = "Usuário não encontrado" });
+                return NotFound();
             }
-
-            // Soft delete - apenas desativa
-            usuario.Ativo = false;
-            usuario.DataAtualizacao = DateTime.UtcNow;
-
-            await _usuarioRepository.AtualizarAsync(usuario);
 
             return Ok(new { message = "Usuário desativado com sucesso" });
         }
@@ -196,27 +127,13 @@ public class UsuariosController : ControllerBase
     {
         try
         {
-            var usuarioAtual = ObterUsuarioAtual();
-            var usuario = await _usuarioRepository.ObterPorIdAsync(usuarioAtual.Id);
-            
-            if (usuario == null)
-            {
-                return NotFound(new { message = "Usuário não encontrado" });
-            }
+            var usuarioId = ObterUsuarioId();
+            var perfil = await _usuarioService.ObterPerfilAsync(usuarioId);
+        
+            if (perfil == null)
+                return NotFound();
 
-            var usuarioDto = new UsuarioPerfilDto
-            {
-                Id = usuario.Id,
-                Nome = usuario.Nome,
-                Email = usuario.Email,
-                AvatarUrl = usuario.AvatarUrl,
-                Provedor = usuario.Provedor,
-                DataUltimoLogin = usuario.DataUltimoLogin,
-                DataCriacao = usuario.DataCriacao,
-                Ativo = usuario.Ativo
-            };
-
-            return Ok(usuarioDto);
+            return Ok(perfil);
         }
         catch (Exception ex)
         {
@@ -225,71 +142,40 @@ public class UsuariosController : ControllerBase
     }
 
     /// <summary>
-    /// Obtém dados do usuário atual a partir do token
+    /// Obtém estatísticas de usuários (apenas Admin)
     /// </summary>
-    private UsuarioTokenInfo ObterUsuarioAtual()
+    [HttpGet("estatisticas")]
+    public async Task<IActionResult> ObterEstatisticas()
+    {
+        try
+        {
+            var userRole = User.FindFirst("role")?.Value;
+            var estatisticas = await _usuarioService.ObterEstatisticasAsync(userRole);
+            return Ok(estatisticas);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Forbid(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Erro interno no servidor", error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Obtém ID do usuário atual a partir do token
+    /// </summary>
+    private Guid ObterUsuarioId()
     {
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        var email = User.FindFirst(ClaimTypes.Email)?.Value;
-        var nome = User.FindFirst(ClaimTypes.Name)?.Value;
 
         if (string.IsNullOrEmpty(userId) || !Guid.TryParse(userId, out var userGuid))
         {
             throw new UnauthorizedAccessException("Token inválido");
         }
 
-        return new UsuarioTokenInfo
-        {
-            Id = userGuid,
-            Email = email ?? "",
-            Nome = nome ?? ""
-        };
+        return userGuid;
     }
 }
 
-/// <summary>
-/// DTO para atualização de usuário
-/// </summary>
-public class AtualizarUsuarioDto
-{
-    /// <summary>
-    /// Nome do usuário
-    /// </summary>
-    public string Nome { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Email do usuário
-    /// </summary>
-    public string Email { get; set; } = string.Empty;
-
-    /// <summary>
-    /// URL do avatar
-    /// </summary>
-    public string? AvatarUrl { get; set; }
-}
-
-/// <summary>
-/// DTO para perfil completo do usuário
-/// </summary>
-public class UsuarioPerfilDto : UsuarioDto
-{
-    /// <summary>
-    /// Data de criação da conta
-    /// </summary>
-    public DateTime DataCriacao { get; set; }
-
-    /// <summary>
-    /// Status da conta
-    /// </summary>
-    public bool Ativo { get; set; }
-}
-
-/// <summary>
-/// Informações do usuário extraídas do token
-/// </summary>
-public class UsuarioTokenInfo
-{
-    public Guid Id { get; set; }
-    public string Email { get; set; } = string.Empty;
-    public string Nome { get; set; } = string.Empty;
-}

@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TechSub.Dominio.Entidades;
-using TechSub.Dominio.Interfaces;
+using TechSub.Dominio.Interfaces.Repositories;
 using TechSub.Infraestrutura.Data;
 
 namespace TechSub.Infraestrutura.Repositories;
@@ -38,25 +38,23 @@ public class PlanoRepository : IPlanoRepository
             .ToListAsync();
     }
 
-    public async Task<IEnumerable<Plano>> ObterTodosOrdenadosAsync()
+    public async Task<IEnumerable<Plano>> ObterTodosAsync()
     {
         return await _context.Planos
             .OrderBy(p => p.Ordem)
             .ToListAsync();
     }
 
-    public async Task<Plano> AdicionarAsync(Plano plano)
+    public async Task AdicionarAsync(Plano plano)
     {
         _context.Planos.Add(plano);
         await _context.SaveChangesAsync();
-        return plano;
     }
 
-    public async Task<Plano> AtualizarAsync(Plano plano)
+    public async Task AtualizarAsync(Plano plano)
     {
         _context.Planos.Update(plano);
         await _context.SaveChangesAsync();
-        return plano;
     }
 
     public async Task RemoverAsync(Guid id)

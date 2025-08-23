@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TechSub.Dominio.Entidades;
 using TechSub.Dominio.Enums;
-using TechSub.Dominio.Interfaces;
+using TechSub.Dominio.Interfaces.Repositories;
 using TechSub.Infraestrutura.Data;
 
 namespace TechSub.Infraestrutura.Repositories;
@@ -67,18 +67,16 @@ public class AssinaturaRepository : IAssinaturaRepository
             .ToListAsync();
     }
 
-    public async Task<Assinatura> AdicionarAsync(Assinatura assinatura)
+    public async Task AdicionarAsync(Assinatura assinatura)
     {
         _context.Assinaturas.Add(assinatura);
         await _context.SaveChangesAsync();
-        return assinatura;
     }
 
-    public async Task<Assinatura> AtualizarAsync(Assinatura assinatura)
+    public async Task AtualizarAsync(Assinatura assinatura)
     {
         _context.Assinaturas.Update(assinatura);
         await _context.SaveChangesAsync();
-        return assinatura;
     }
 
     public async Task RemoverAsync(Guid id)
@@ -133,6 +131,59 @@ public class AssinaturaRepository : IAssinaturaRepository
             .Include(a => a.Plano)
             .OrderByDescending(a => a.DataCriacao)
             .ToListAsync();
+    }
+
+    public async Task<IEnumerable<Assinatura>> ObterTodosAsync()
+    {
+        return await ObterTodasAsync();
+    }
+
+    public async Task<Assinatura?> ObterAtivaPorUsuarioAsync(Guid usuarioId)
+    {
+        return await ObterAtivaAsync(usuarioId);
+    }
+
+    public async Task<IEnumerable<Assinatura>> ObterExpiradasAsync()
+    {
+        return await _context.Assinaturas
+            .Include(a => a.Usuario)
+            .Include(a => a.Plano)
+            .Where(a => a.Status == StatusAssinatura.Ativa && a.DataTermino <= DateTime.UtcNow)
+            .ToListAsync();
+    }
+
+    public async Task<IEnumerable<Assinatura>> ObterParaRenovacaoAsync()
+    {
+        var proximaCobranca = DateTime.UtcNow.AddDays(3);
+        return await _context.Assinaturas
+            .Include(a => a.Usuario)
+            .Include(a => a.Plano)
+            .Where(a => a.Status == StatusAssinatura.Ativa && a.DataProximaCobranca <= proximaCobranca)
+            .ToListAsync();
+    }
+
+    public async Task<IEnumerable<Assinatura>> ObterParaCancelamentoAsync()
+    {
+        return await _context.Assinaturas
+            .Include(a => a.Usuario)
+            .Include(a => a.Plano)
+            .Where(a => a.Status == StatusAssinatura.CancelamentoPendente)
+            .ToListAsync();
+    }
+
+    public async Task<object> ObterRelatorioAsync()
+    {
+        var hoje = DateTime.UtcNow;
+        var inicioMes = new DateTime(hoje.Year, hoje.Month, 1);
+        
+        return new
+        {
+            TotalAssinaturas = await _context.Assinaturas.CountAsync(),
+            AssinaturasAtivas = await _context.Assinaturas.CountAsync(a => a.Status == StatusAssinatura.Ativa),
+            AssinaturasCanceladas = await _context.Assinaturas.CountAsync(a => a.Status == StatusAssinatura.Cancelada),
+            NovasAssinaturasMes = await _context.Assinaturas.CountAsync(a => a.DataInicio >= inicioMes),
+            MRR = await CalcularMRRAsync()
+        };
     }
 
     public async Task<Assinatura?> ObterAtivaAsync(Guid usuarioId)

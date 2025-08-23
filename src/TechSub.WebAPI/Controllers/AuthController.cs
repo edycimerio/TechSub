@@ -3,10 +3,9 @@ using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
-using TechSub.Aplicacao.DTOs;
-using TechSub.Aplicacao.Services;
-using TechSub.Dominio.Entidades;
-using TechSub.Dominio.Interfaces;
+using TechSub.Aplicacao.Requests;
+using TechSub.Aplicacao.Responses;
+using TechSub.Aplicacao.Interfaces;
 
 namespace TechSub.WebAPI.Controllers;
 
@@ -17,15 +16,11 @@ namespace TechSub.WebAPI.Controllers;
 [Route("api/[controller]")]
 public class AuthController : ControllerBase
 {
-    private readonly AuthService _authService;
-    private readonly IConfiguration _configuration;
-    private readonly IUsuarioRepository _usuarioRepository;
+    private readonly IAuthService _authService;
 
-    public AuthController(AuthService authService, IConfiguration configuration, IUsuarioRepository usuarioRepository)
+    public AuthController(IAuthService authService)
     {
         _authService = authService;
-        _configuration = configuration;
-        _usuarioRepository = usuarioRepository;
     }
 
     /// <summary>
@@ -65,23 +60,7 @@ public class AuthController : ControllerBase
                 return BadRequest(new { message = "Dados incompletos do Google" });
             }
 
-            var (usuario, token) = await _authService.ProcessarLoginGoogleAsync(googleId, email, nome, avatarUrl);
-
-            var response = new LoginResponseDto
-            {
-                AccessToken = token,
-                TokenType = "Bearer",
-                ExpiresIn = 24 * 3600, // 24 horas em segundos
-                Usuario = new UsuarioDto
-                {
-                    Id = usuario.Id,
-                    Nome = usuario.Nome,
-                    Email = usuario.Email,
-                    AvatarUrl = usuario.AvatarUrl,
-                    Provedor = usuario.Provedor,
-                    DataUltimoLogin = usuario.DataUltimoLogin
-                }
-            };
+            var response = await _authService.ProcessarLoginGoogleAsync(googleId, email, nome, avatarUrl);
 
             // Se for uma requisição de API, retorna JSON
             if (Request.Headers.Accept.ToString().Contains("application/json"))
@@ -91,7 +70,7 @@ public class AuthController : ControllerBase
 
             // Se for navegador, redireciona com token (para desenvolvimento)
             var frontendUrl = returnUrl ?? "http://localhost:5000";
-            return Redirect($"{frontendUrl}?token={token}");
+            return Redirect($"{frontendUrl}?token={response.AccessToken}");
         }
         catch (Exception ex)
         {
@@ -115,16 +94,7 @@ public class AuthController : ControllerBase
                 return Unauthorized(new { message = "Token inválido" });
             }
 
-            // Aqui você buscaria o usuário no repositório
-            // Por enquanto, retornamos os dados do token
-            var usuario = new UsuarioDto
-            {
-                Id = userGuid,
-                Nome = User.FindFirst(ClaimTypes.Name)?.Value ?? "",
-                Email = User.FindFirst(ClaimTypes.Email)?.Value ?? "",
-                Provedor = User.FindFirst("provider")?.Value
-            };
-
+            var usuario = await _authService.ObterUsuarioAtualAsync(userId);
             return Ok(usuario);
         }
         catch (Exception ex)
@@ -137,7 +107,7 @@ public class AuthController : ControllerBase
     /// Valida se um token JWT é válido
     /// </summary>
     [HttpPost("validate-token")]
-    public IActionResult ValidarToken([FromBody] ValidateTokenRequest request)
+    public async Task<IActionResult> ValidarToken([FromBody] ValidateTokenRequest request)
     {
         try
         {
@@ -153,14 +123,12 @@ public class AuthController : ControllerBase
                 return BadRequest(new { message = "Token inválido ou expirado" });
             }
 
-            var claims = _authService.ObterClaimsDoToken(request.Token);
+            var claims = await _authService.ObterClaimsDoTokenAsync(request.Token);
             
             return Ok(new 
             { 
                 valid = true,
-                userId = claims?.FindFirst(ClaimTypes.NameIdentifier)?.Value,
-                email = claims?.FindFirst(ClaimTypes.Email)?.Value,
-                name = claims?.FindFirst(ClaimTypes.Name)?.Value
+                claims = claims
             });
         }
         catch (Exception ex)
@@ -184,38 +152,17 @@ public class AuthController : ControllerBase
     /// Recuperação de senha (simulada)
     /// </summary>
     [HttpPost("recuperar-senha")]
-    public async Task<ActionResult> RecuperarSenha([FromBody] RecuperarSenhaDto request)
+    public async Task<ActionResult> RecuperarSenha([FromBody] RecuperarSenhaRequest request)
     {
-        var usuario = await _usuarioRepository.ObterPorEmailAsync(request.Email);
-        if (usuario == null)
+        try
         {
-            // Por segurança, sempre retorna sucesso mesmo se email não existir
+            await _authService.RecuperarSenhaAsync(request.Email);
             return Ok(new { message = "Se o email existir, você receberá instruções para recuperação" });
         }
-
-        // TODO: Implementar envio real de email
-        // Por enquanto, apenas simula o envio
-        Console.WriteLine($"[RECUPERAÇÃO SENHA] Email enviado para {request.Email}");
-
-        return Ok(new { message = "Se o email existir, você receberá instruções para recuperação" });
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Erro interno no servidor", error = ex.Message });
+        }
     }
 }
 
-/// <summary>
-/// DTO para recuperação de senha
-/// </summary>
-public class RecuperarSenhaDto
-{
-    public string Email { get; set; } = string.Empty;
-}
-
-/// <summary>
-/// Request para validação de token
-/// </summary>
-public class ValidateTokenRequest
-{
-    /// <summary>
-    /// Token JWT para validar
-    /// </summary>
-    public string Token { get; set; } = string.Empty;
-}

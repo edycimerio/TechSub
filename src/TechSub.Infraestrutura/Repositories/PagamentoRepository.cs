@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TechSub.Dominio.Entidades;
 using TechSub.Dominio.Enums;
-using TechSub.Dominio.Interfaces;
+using TechSub.Dominio.Interfaces.Repositories;
 using TechSub.Infraestrutura.Data;
 
 namespace TechSub.Infraestrutura.Repositories;
@@ -61,18 +61,51 @@ public class PagamentoRepository : IPagamentoRepository
             .ToListAsync();
     }
 
-    public async Task<Pagamento> AdicionarAsync(Pagamento pagamento)
+    public async Task<IEnumerable<Pagamento>> ObterTodosAsync()
+    {
+        return await _context.Pagamentos
+            .Include(p => p.Assinatura)
+            .ThenInclude(a => a.Usuario)
+            .Include(p => p.Assinatura)
+            .ThenInclude(a => a.Plano)
+            .OrderByDescending(p => p.DataProcessamento ?? p.DataCriacao)
+            .ToListAsync();
+    }
+
+    public async Task<IEnumerable<Pagamento>> ObterPorUsuarioAsync(Guid usuarioId)
+    {
+        return await _context.Pagamentos
+            .Include(p => p.Assinatura)
+            .ThenInclude(a => a.Usuario)
+            .Include(p => p.Assinatura)
+            .ThenInclude(a => a.Plano)
+            .Where(p => p.Assinatura.UsuarioId == usuarioId)
+            .OrderByDescending(p => p.DataProcessamento ?? p.DataCriacao)
+            .ToListAsync();
+    }
+
+    public async Task<IEnumerable<Pagamento>> ObterFalhadosAsync()
+    {
+        return await _context.Pagamentos
+            .Include(p => p.Assinatura)
+            .ThenInclude(a => a.Usuario)
+            .Include(p => p.Assinatura)
+            .ThenInclude(a => a.Plano)
+            .Where(p => p.Status == StatusPagamento.Rejeitado)
+            .OrderByDescending(p => p.DataProcessamento ?? p.DataCriacao)
+            .ToListAsync();
+    }
+
+    public async Task AdicionarAsync(Pagamento pagamento)
     {
         _context.Pagamentos.Add(pagamento);
         await _context.SaveChangesAsync();
-        return pagamento;
     }
 
-    public async Task<Pagamento> AtualizarAsync(Pagamento pagamento)
+    public async Task AtualizarAsync(Pagamento pagamento)
     {
         _context.Pagamentos.Update(pagamento);
         await _context.SaveChangesAsync();
-        return pagamento;
     }
 
     public async Task RemoverAsync(Guid id)

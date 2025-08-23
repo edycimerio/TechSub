@@ -1,10 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
-using TechSub.Aplicacao.Services;
-using TechSub.Dominio.Entidades;
-using TechSub.Dominio.Enums;
-using TechSub.Dominio.Interfaces;
+using TechSub.Aplicacao.Requests;
+using TechSub.Aplicacao.Responses;
+using TechSub.Aplicacao.Interfaces;
 
 namespace TechSub.WebAPI.Controllers;
 
@@ -16,153 +15,84 @@ namespace TechSub.WebAPI.Controllers;
 [Authorize]
 public class PagamentosController : ControllerBase
 {
-    private readonly IPagamentoRepository _pagamentoRepository;
-    private readonly IAssinaturaRepository _assinaturaRepository;
-    private readonly IUsuarioRepository _usuarioRepository;
-    private readonly NotificacaoService _notificacaoService;
+    private readonly IPagamentoService _pagamentoService;
 
-    public PagamentosController(
-        IPagamentoRepository pagamentoRepository,
-        IAssinaturaRepository assinaturaRepository,
-        IUsuarioRepository usuarioRepository,
-        NotificacaoService notificacaoService)
+    public PagamentosController(IPagamentoService pagamentoService)
     {
-        _pagamentoRepository = pagamentoRepository;
-        _assinaturaRepository = assinaturaRepository;
-        _usuarioRepository = usuarioRepository;
-        _notificacaoService = notificacaoService;
+        _pagamentoService = pagamentoService;
     }
 
     /// <summary>
     /// Obter histórico de pagamentos do usuário
     /// </summary>
     [HttpGet("meus")]
-    public async Task<ActionResult<IEnumerable<PagamentoResponseDto>>> ObterMeusPagamentos()
+    public async Task<ActionResult<IEnumerable<PagamentoResponse>>> ObterMeusPagamentos()
     {
-        var usuarioId = ObterUsuarioId();
-        var assinaturas = await _assinaturaRepository.ObterPorUsuarioAsync(usuarioId);
-        var assinaturaIds = assinaturas.Select(a => a.Id).ToList();
-
-        var pagamentos = new List<Pagamento>();
-        foreach (var assinaturaId in assinaturaIds)
+        try
         {
-            var pagamentosAssinatura = await _pagamentoRepository.ObterPorAssinaturaAsync(assinaturaId);
-            pagamentos.AddRange(pagamentosAssinatura);
+            var usuarioId = ObterUsuarioId();
+            var pagamentos = await _pagamentoService.ObterHistoricoUsuarioAsync(usuarioId);
+            return Ok(pagamentos);
         }
-
-        var response = pagamentos.Select(p => new PagamentoResponseDto
+        catch (UnauthorizedAccessException ex)
         {
-            Id = p.Id,
-            AssinaturaId = p.AssinaturaId,
-            PlanoNome = p.Assinatura?.Plano?.Nome ?? "N/A",
-            Valor = p.Valor,
-            Status = p.Status.ToString(),
-            DataVencimento = p.DataVencimento,
-            DataProcessamento = p.DataProcessamento,
-            MetodoPagamento = p.MetodoPagamento,
-            TransacaoId = p.TransacaoId,
-            MensagemErro = p.MensagemErro
-        }).OrderByDescending(p => p.DataVencimento);
-
-        return Ok(response);
+            return Unauthorized(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Erro interno no servidor", error = ex.Message });
+        }
     }
 
     /// <summary>
     /// Obter detalhes de um pagamento específico
     /// </summary>
     [HttpGet("{id}")]
-    public async Task<ActionResult<PagamentoResponseDto>> ObterPagamento(Guid id)
+    public async Task<ActionResult<PagamentoResponse>> ObterPagamento(Guid id)
     {
-        var pagamento = await _pagamentoRepository.ObterPorIdAsync(id);
-        if (pagamento == null)
-            return NotFound("Pagamento não encontrado");
-
-        var usuarioId = ObterUsuarioId();
-        if (pagamento.Assinatura.UsuarioId != usuarioId && !User.IsInRole("Admin"))
-            return Forbid("Acesso negado");
-
-        var response = new PagamentoResponseDto
+        try
         {
-            Id = pagamento.Id,
-            AssinaturaId = pagamento.AssinaturaId,
-            PlanoNome = pagamento.Assinatura?.Plano?.Nome ?? "N/A",
-            Valor = pagamento.Valor,
-            Status = pagamento.Status.ToString(),
-            DataVencimento = pagamento.DataVencimento,
-            DataProcessamento = pagamento.DataProcessamento,
-            MetodoPagamento = pagamento.MetodoPagamento,
-            TransacaoId = pagamento.TransacaoId,
-            MensagemErro = pagamento.MensagemErro
-        };
+            var usuarioId = ObterUsuarioId();
+            var pagamento = await _pagamentoService.ObterPorIdAsync(id, usuarioId);
+            
+            if (pagamento == null)
+                return NotFound();
 
-        return Ok(response);
+            return Ok(pagamento);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Erro interno no servidor", error = ex.Message });
+        }
     }
 
     /// <summary>
     /// Simular processamento de pagamento
     /// </summary>
     [HttpPost("{id}/processar")]
-    public async Task<ActionResult> ProcessarPagamento(Guid id, [FromBody] ProcessarPagamentoDto request)
+    public async Task<ActionResult> ProcessarPagamento(Guid id, [FromBody] ProcessarPagamentoRequest request)
     {
-        var pagamento = await _pagamentoRepository.ObterPorIdAsync(id);
-        if (pagamento == null)
-            return NotFound("Pagamento não encontrado");
-
-        var usuarioId = ObterUsuarioId();
-        if (pagamento.Assinatura.UsuarioId != usuarioId)
-            return Forbid("Acesso negado");
-
-        if (pagamento.Status != StatusPagamento.Pendente)
-            return BadRequest("Apenas pagamentos pendentes podem ser processados");
-
-        // Simulação de processamento de pagamento
-        var sucesso = SimularProcessamentoPagamento(request.MetodoPagamento);
-
-        if (sucesso)
+        try
         {
-            pagamento.Status = StatusPagamento.Aprovado;
-            pagamento.DataProcessamento = DateTime.UtcNow;
-            pagamento.MetodoPagamento = request.MetodoPagamento;
-            pagamento.TransacaoId = Guid.NewGuid().ToString("N")[..16]; // ID simulado
-            pagamento.DataAtualizacao = DateTime.UtcNow;
-
-            await _pagamentoRepository.AtualizarAsync(pagamento);
-
-            // Notificar sucesso
-            var usuario = await _usuarioRepository.ObterPorIdAsync(pagamento.Assinatura.UsuarioId);
-            if (usuario != null)
-            {
-                await _notificacaoService.NotificarPagamentoSucessoAsync(pagamento, usuario);
-            }
-
-            return Ok(new { 
-                message = "Pagamento processado com sucesso",
-                transacaoId = pagamento.TransacaoId,
-                status = "Aprovado"
-            });
+            var usuarioId = ObterUsuarioId();
+            var response = await _pagamentoService.ProcessarPagamentoAsync(id, request, usuarioId);
+            return Ok(response);
         }
-        else
+        catch (UnauthorizedAccessException ex)
         {
-            pagamento.Status = StatusPagamento.Rejeitado;
-            pagamento.MetodoPagamento = request.MetodoPagamento;
-            pagamento.MensagemErro = "Pagamento rejeitado pela operadora";
-            pagamento.TentativasCobranca++;
-            pagamento.DataAtualizacao = DateTime.UtcNow;
-
-            await _pagamentoRepository.AtualizarAsync(pagamento);
-
-            // Notificar falha
-            var usuario = await _usuarioRepository.ObterPorIdAsync(pagamento.Assinatura.UsuarioId);
-            if (usuario != null)
-            {
-                await _notificacaoService.NotificarPagamentoFalhaAsync(pagamento, usuario);
-            }
-
-            return BadRequest(new {
-                message = "Pagamento rejeitado",
-                erro = pagamento.MensagemErro,
-                tentativas = pagamento.TentativasCobranca
-            });
+            return Unauthorized(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Erro interno no servidor", error = ex.Message });
         }
     }
 
@@ -172,28 +102,24 @@ public class PagamentosController : ControllerBase
     [HttpPost("{id}/reprocessar")]
     public async Task<ActionResult> ReprocessarPagamento(Guid id)
     {
-        var pagamento = await _pagamentoRepository.ObterPorIdAsync(id);
-        if (pagamento == null)
-            return NotFound("Pagamento não encontrado");
-
-        var usuarioId = ObterUsuarioId();
-        if (pagamento.Assinatura.UsuarioId != usuarioId)
-            return Forbid("Acesso negado");
-
-        if (pagamento.Status != StatusPagamento.Rejeitado)
-            return BadRequest("Apenas pagamentos rejeitados podem ser reprocessados");
-
-        if (pagamento.TentativasCobranca >= 3)
-            return BadRequest("Número máximo de tentativas excedido");
-
-        // Resetar status para reprocessamento
-        pagamento.Status = StatusPagamento.Pendente;
-        pagamento.MensagemErro = null;
-        pagamento.DataAtualizacao = DateTime.UtcNow;
-
-        await _pagamentoRepository.AtualizarAsync(pagamento);
-
-        return Ok(new { message = "Pagamento marcado para reprocessamento" });
+        try
+        {
+            var usuarioId = ObterUsuarioId();
+            var response = await _pagamentoService.ReprocessarPagamentoAsync(id, usuarioId);
+            return Ok(response);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Erro interno no servidor", error = ex.Message });
+        }
     }
 
     /// <summary>
@@ -201,48 +127,25 @@ public class PagamentosController : ControllerBase
     /// </summary>
     [HttpGet]
     [Authorize(Roles = "Admin")]
-    public async Task<ActionResult<IEnumerable<PagamentoAdminDto>>> ListarTodosPagamentos(
-        [FromQuery] StatusPagamento? status = null,
+    public async Task<ActionResult<IEnumerable<PagamentoResponse>>> ListarTodosPagamentos(
+        [FromQuery] string? status = null,
         [FromQuery] DateTime? dataInicio = null,
         [FromQuery] DateTime? dataFim = null)
     {
-        IEnumerable<Pagamento> pagamentos;
-
-        if (status.HasValue)
+        try
         {
-            pagamentos = await _pagamentoRepository.ObterPorStatusAsync(status.Value);
+            var userRole = User.FindFirst("role")?.Value;
+            var pagamentos = await _pagamentoService.ObterTodosAsync(userRole, status, dataInicio, dataFim);
+            return Ok(pagamentos);
         }
-        else if (dataInicio.HasValue && dataFim.HasValue)
+        catch (UnauthorizedAccessException ex)
         {
-            pagamentos = await _pagamentoRepository.ObterPorPeriodoAsync(dataInicio.Value, dataFim.Value);
+            return Forbid(ex.Message);
         }
-        else
+        catch (Exception ex)
         {
-            // Buscar pagamentos dos últimos 30 dias por padrão
-            var inicio = DateTime.UtcNow.AddDays(-30);
-            var fim = DateTime.UtcNow;
-            pagamentos = await _pagamentoRepository.ObterPorPeriodoAsync(inicio, fim);
+            return StatusCode(500, new { message = "Erro interno no servidor", error = ex.Message });
         }
-
-        var response = pagamentos.Select(p => new PagamentoAdminDto
-        {
-            Id = p.Id,
-            AssinaturaId = p.AssinaturaId,
-            UsuarioNome = p.Assinatura?.Usuario?.Nome ?? "N/A",
-            UsuarioEmail = p.Assinatura?.Usuario?.Email ?? "N/A",
-            PlanoNome = p.Assinatura?.Plano?.Nome ?? "N/A",
-            Valor = p.Valor,
-            Status = p.Status.ToString(),
-            DataVencimento = p.DataVencimento,
-            DataProcessamento = p.DataProcessamento,
-            MetodoPagamento = p.MetodoPagamento,
-            TransacaoId = p.TransacaoId,
-            MensagemErro = p.MensagemErro,
-            TentativasCobranca = p.TentativasCobranca,
-            DataCriacao = p.DataCriacao
-        }).OrderByDescending(p => p.DataCriacao);
-
-        return Ok(response);
     }
 
     /// <summary>
@@ -250,26 +153,22 @@ public class PagamentosController : ControllerBase
     /// </summary>
     [HttpGet("estatisticas")]
     [Authorize(Roles = "Admin")]
-    public async Task<ActionResult<EstatisticasPagamentoDto>> ObterEstatisticas()
+    public async Task<ActionResult> ObterEstatisticas()
     {
-        var inicio = DateTime.UtcNow.AddDays(-30);
-        var fim = DateTime.UtcNow;
-        var pagamentos = await _pagamentoRepository.ObterPorPeriodoAsync(inicio, fim);
-
-        var estatisticas = new EstatisticasPagamentoDto
+        try
         {
-            TotalPagamentos = pagamentos.Count(),
-            PagamentosAprovados = pagamentos.Count(p => p.Status == StatusPagamento.Aprovado),
-            PagamentosRejeitados = pagamentos.Count(p => p.Status == StatusPagamento.Rejeitado),
-            PagamentosPendentes = pagamentos.Count(p => p.Status == StatusPagamento.Pendente),
-            ValorTotalAprovado = pagamentos.Where(p => p.Status == StatusPagamento.Aprovado).Sum(p => p.Valor),
-            TaxaAprovacao = pagamentos.Any() 
-                ? (decimal)pagamentos.Count(p => p.Status == StatusPagamento.Aprovado) / pagamentos.Count() * 100 
-                : 0,
-            Periodo = $"{inicio:dd/MM/yyyy} - {fim:dd/MM/yyyy}"
-        };
-
-        return Ok(estatisticas);
+            var userRole = User.FindFirst("role")?.Value;
+            var estatisticas = await _pagamentoService.ObterEstatisticasAsync(userRole);
+            return Ok(estatisticas);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Forbid(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Erro interno no servidor", error = ex.Message });
+        }
     }
 
     private Guid ObterUsuarioId()
@@ -282,81 +181,5 @@ public class PagamentosController : ControllerBase
         return userId;
     }
 
-    /// <summary>
-    /// Simula processamento de pagamento com base no método
-    /// </summary>
-    private static bool SimularProcessamentoPagamento(string metodoPagamento)
-    {
-        // Simulação simples: 80% de aprovação para cartão, 90% para PIX
-        var random = new Random();
-        var chance = metodoPagamento.ToLower() switch
-        {
-            "pix" => 0.9,
-            "cartao" => 0.8,
-            "boleto" => 0.85,
-            _ => 0.7
-        };
-
-        return random.NextDouble() < chance;
-    }
 }
 
-/// <summary>
-/// DTO para resposta de pagamento
-/// </summary>
-public class PagamentoResponseDto
-{
-    public Guid Id { get; set; }
-    public Guid AssinaturaId { get; set; }
-    public string PlanoNome { get; set; } = string.Empty;
-    public decimal Valor { get; set; }
-    public string Status { get; set; } = string.Empty;
-    public DateTime DataVencimento { get; set; }
-    public DateTime? DataProcessamento { get; set; }
-    public string? MetodoPagamento { get; set; }
-    public string? TransacaoId { get; set; }
-    public string? MensagemErro { get; set; }
-}
-
-/// <summary>
-/// DTO para processar pagamento
-/// </summary>
-public class ProcessarPagamentoDto
-{
-    public string MetodoPagamento { get; set; } = string.Empty; // pix, cartao, boleto
-}
-
-/// <summary>
-/// DTO para visualização admin de pagamentos
-/// </summary>
-public class PagamentoAdminDto
-{
-    public Guid Id { get; set; }
-    public Guid AssinaturaId { get; set; }
-    public string UsuarioNome { get; set; } = string.Empty;
-    public string UsuarioEmail { get; set; } = string.Empty;
-    public string PlanoNome { get; set; } = string.Empty;
-    public decimal Valor { get; set; }
-    public string Status { get; set; } = string.Empty;
-    public DateTime DataVencimento { get; set; }
-    public DateTime? DataProcessamento { get; set; }
-    public string? MetodoPagamento { get; set; }
-    public string? TransacaoId { get; set; }
-    public string? MensagemErro { get; set; }
-    public int TentativasCobranca { get; set; }
-    public DateTime DataCriacao { get; set; }
-}
-
-/// <summary>
-/// DTO para estatísticas de pagamentos
-/// </summary>
-public class EstatisticasPagamentoDto
-{
-    public int TotalPagamentos { get; set; }
-    public int PagamentosAprovados { get; set; }
-    public int PagamentosRejeitados { get; set; }
-    public int PagamentosPendentes { get; set; }
-    public decimal ValorTotalAprovado { get; set; }
-    public decimal TaxaAprovacao { get; set; }
-    public string Periodo { get; set; } = string.Empty;
-}

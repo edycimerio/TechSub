@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TechSub.Dominio.Entidades;
-using TechSub.Dominio.Interfaces;
+using TechSub.Dominio.Interfaces.Repositories;
 using TechSub.Infraestrutura.Data;
 
 namespace TechSub.Infraestrutura.Repositories;
@@ -38,27 +38,31 @@ public class UsuarioRepository : IUsuarioRepository
             .FirstOrDefaultAsync(u => u.Provedor == provedor && u.ProvedorId == provedorId);
     }
 
-    public async Task<IEnumerable<Usuario>> ObterTodosAtivosAsync()
+    public async Task<Usuario?> ObterPorGoogleIdAsync(string googleId)
     {
         return await _context.Usuarios
-            .Where(u => u.Ativo)
+            .Include(u => u.Assinaturas)
+            .FirstOrDefaultAsync(u => u.GoogleId == googleId);
+    }
+
+    public async Task<IEnumerable<Usuario>> ObterTodosAsync()
+    {
+        return await _context.Usuarios
             .Include(u => u.Assinaturas)
             .OrderBy(u => u.Nome)
             .ToListAsync();
     }
 
-    public async Task<Usuario> AdicionarAsync(Usuario usuario)
+    public async Task AdicionarAsync(Usuario usuario)
     {
         _context.Usuarios.Add(usuario);
         await _context.SaveChangesAsync();
-        return usuario;
     }
 
-    public async Task<Usuario> AtualizarAsync(Usuario usuario)
+    public async Task AtualizarAsync(Usuario usuario)
     {
         _context.Usuarios.Update(usuario);
         await _context.SaveChangesAsync();
-        return usuario;
     }
 
     public async Task RemoverAsync(Guid id)

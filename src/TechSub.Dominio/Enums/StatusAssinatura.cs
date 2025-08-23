@@ -28,5 +28,10 @@ public enum StatusAssinatura
     /// <summary>
     /// Assinatura expirada
     /// </summary>
-    Expirada = 5
+    Expirada = 5,
+
+    /// <summary>
+    /// Assinatura com cancelamento pendente
+    /// </summary>
+    CancelamentoPendente = 6
 }

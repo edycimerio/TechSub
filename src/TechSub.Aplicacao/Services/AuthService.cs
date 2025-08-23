@@ -1,17 +1,22 @@
+using TechSub.Aplicacao.Requests;
+using TechSub.Aplicacao.Responses;
+using TechSub.Dominio.Enums;
+using TechSub.Dominio.Entidades;
+using TechSub.Dominio.Interfaces.Repositories;
+using TechSub.Aplicacao.Interfaces;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
-using TechSub.Dominio.Entidades;
-using TechSub.Dominio.Interfaces;
+using Google.Apis.Auth;
 
 namespace TechSub.Aplicacao.Services;
 
 /// <summary>
-/// Serviço para gerenciamento de autenticação e tokens JWT
+/// Serviço para autenticação e autorização
 /// </summary>
-public class AuthService
+public class AuthService : IAuthService
 {
     private readonly IConfiguration _configuration;
     private readonly IUsuarioRepository _usuarioRepository;
@@ -58,9 +63,50 @@ public class AuthService
     }
 
     /// <summary>
-    /// Processa login via Google OAuth
+    /// Obtém informações do usuário
     /// </summary>
-    public async Task<(Usuario usuario, string token)> ProcessarLoginGoogleAsync(string googleId, string email, string nome, string? avatarUrl = null)
+    public async Task<PerfilUsuarioResponse?> ObterInfoUsuarioAsync(Guid usuarioId)
+    {
+        var usuario = await _usuarioRepository.ObterPorIdAsync(usuarioId);
+        if (usuario == null) return null;
+
+        return new PerfilUsuarioResponse
+        {
+            Id = usuario.Id,
+            Nome = usuario.Nome,
+            Email = usuario.Email,
+            AvatarUrl = usuario.AvatarUrl,
+            DataCriacao = usuario.DataCriacao,
+            DataUltimoLogin = usuario.DataUltimoLogin,
+            Ativo = usuario.Ativo
+        };
+    }
+
+    /// <summary>
+    /// Processa recuperação de senha
+    /// </summary>
+    public async Task<bool> ProcessarRecuperacaoSenhaAsync(RecuperarSenhaRequest request)
+    {
+        var usuario = await _usuarioRepository.ObterPorEmailAsync(request.Email);
+        if (usuario == null) return false;
+
+        // Simulação - em produção enviaria email real
+        return true;
+    }
+
+    /// <summary>
+    /// Valida token de recuperação
+    /// </summary>
+    public async Task<bool> ValidarTokenRecuperacaoAsync(ValidateTokenRequest request)
+    {
+        // Simulação - em produção validaria token real
+        return !string.IsNullOrEmpty(request.Token);
+    }
+
+    /// <summary>
+    /// Processa login com Google OAuth
+    /// </summary>
+    public async Task<Usuario> ProcessarLoginGoogleAsync(string googleId, string email, string nome, string? avatarUrl = null)
     {
         // Verifica se usuário já existe pelo provedor Google
         var usuarioExistente = await _usuarioRepository.ObterPorProvedorAsync("Google", googleId);
@@ -74,8 +120,7 @@ public class AuthService
             
             await _usuarioRepository.AtualizarAsync(usuarioExistente);
             
-            var token = GerarTokenJwt(usuarioExistente);
-            return (usuarioExistente, token);
+            return usuarioExistente;
         }
 
         // Verifica se já existe usuário com mesmo email
@@ -89,8 +134,7 @@ public class AuthService
             
             await _usuarioRepository.AtualizarAsync(usuarioPorEmail);
             
-            var token = GerarTokenJwt(usuarioPorEmail);
-            return (usuarioPorEmail, token);
+            return usuarioPorEmail;
         }
 
         // Cria novo usuário
@@ -109,8 +153,15 @@ public class AuthService
 
         await _usuarioRepository.AdicionarAsync(novoUsuario);
         
-        var novoToken = GerarTokenJwt(novoUsuario);
-        return (novoUsuario, novoToken);
+        return novoUsuario;
+    }
+
+    /// <summary>
+    /// Gera token JWT
+    /// </summary>
+    public string GerarTokenJWT(Usuario usuario)
+    {
+        return GerarTokenJwt(usuario);
     }
 
     /// <summary>
@@ -165,5 +216,75 @@ public class AuthService
         {
             return null;
         }
+    }
+
+    /// <summary>
+    /// Obtém informações do usuário atual baseado no token
+    /// </summary>
+    public async Task<object> ObterInformacoesUsuarioAsync(string token)
+    {
+        var claims = ObterClaimsDoToken(token);
+        if (claims == null) return new { Error = "Token inválido" };
+
+        var userId = claims.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId)) return new { Error = "Usuário não encontrado no token" };
+
+        var usuario = await _usuarioRepository.ObterPorIdAsync(Guid.Parse(userId));
+        if (usuario == null) return new { Error = "Usuário não encontrado" };
+
+        return new
+        {
+            Id = usuario.Id,
+            Nome = usuario.Nome,
+            Email = usuario.Email,
+            Role = usuario.Role,
+            AvatarUrl = usuario.AvatarUrl
+        };
+    }
+
+    /// <summary>
+    /// Obtém usuário atual baseado no ID do usuário
+    /// </summary>
+    public async Task<object> ObterUsuarioAtualAsync(string userId)
+    {
+        if (!Guid.TryParse(userId, out var userGuid))
+        {
+            return new { Error = "ID de usuário inválido" };
+        }
+
+        var usuario = await _usuarioRepository.ObterPorIdAsync(userGuid);
+        if (usuario == null) return new { Error = "Usuário não encontrado" };
+
+        return new
+        {
+            Id = usuario.Id,
+            Nome = usuario.Nome,
+            Email = usuario.Email,
+            Role = usuario.Role,
+            AvatarUrl = usuario.AvatarUrl
+        };
+    }
+
+    /// <summary>
+    /// Obtém claims do token JWT (versão async para interface)
+    /// </summary>
+    public async Task<object> ObterClaimsDoTokenAsync(string token)
+    {
+        var claims = ObterClaimsDoToken(token);
+        if (claims == null) return new { Error = "Token inválido" };
+
+        return claims.Claims.Select(c => new { Type = c.Type, Value = c.Value }).ToList();
+    }
+
+    /// <summary>
+    /// Recupera senha do usuário
+    /// </summary>
+    public async Task<object> RecuperarSenhaAsync(string email)
+    {
+        var usuario = await _usuarioRepository.ObterPorEmailAsync(email);
+        if (usuario == null) return new { Error = "Usuário não encontrado" };
+
+        // Simulação - em produção enviaria email real
+        return new { Message = "Email de recuperação enviado", Success = true };
     }
 }

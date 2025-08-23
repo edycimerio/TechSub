@@ -72,6 +72,24 @@ public class Usuario
     public bool Ativo { get; set; } = true;
 
     /// <summary>
+    /// Role do usuário no sistema (User, Admin)
+    /// </summary>
+    [MaxLength(50)]
+    public string Role { get; set; } = "User";
+
+    /// <summary>
+    /// ID do Google OAuth (compatibilidade)
+    /// </summary>
+    [MaxLength(255)]
+    public string? GoogleId { get; set; }
+
+    /// <summary>
+    /// Token de acesso (para compatibilidade com controllers)
+    /// </summary>
+    [MaxLength(1000)]
+    public string? AccessToken { get; set; }
+
+    /// <summary>
     /// Assinatura ativa do usuário (relacionamento 1:1)
     /// </summary>
     public virtual Assinatura? AssinaturaAtiva { get; set; }

@@ -4,7 +4,8 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
 using TechSub.Aplicacao.Services;
-using TechSub.Dominio.Interfaces;
+using TechSub.Aplicacao.Interfaces;
+using TechSub.Dominio.Interfaces.Repositories;
 using TechSub.Infraestrutura.Data;
 using TechSub.Infraestrutura.Repositories;
 
@@ -30,10 +31,13 @@ builder.Services.AddScoped<IPlanoRepository, PlanoRepository>();
 builder.Services.AddScoped<IAssinaturaRepository, AssinaturaRepository>();
 builder.Services.AddScoped<IPagamentoRepository, PagamentoRepository>();
 
-// Configurar Services
-builder.Services.AddScoped<AuthService>();
-builder.Services.AddScoped<AssinaturaService>();
-builder.Services.AddScoped<NotificacaoService>();
+// Registrar serviços da aplicação
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IUsuarioService, UsuarioService>();
+builder.Services.AddScoped<IPlanoService, PlanoService>();
+builder.Services.AddScoped<IAssinaturaService, AssinaturaService>();
+builder.Services.AddScoped<IPagamentoService, PagamentoService>();
+builder.Services.AddScoped<INotificacaoService, NotificacaoService>();
 
 // Configurar JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("Authentication:JwtSettings");

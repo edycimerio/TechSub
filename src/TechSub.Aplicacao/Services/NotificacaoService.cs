@@ -1,55 +1,86 @@
+using TechSub.Aplicacao.Interfaces;
 using TechSub.Dominio.Entidades;
-using TechSub.Dominio.Enums;
+using TechSub.Dominio.Interfaces.Repositories;
 
 namespace TechSub.Aplicacao.Services;
 
 /// <summary>
 /// Serviço para envio de notificações
 /// </summary>
-public class NotificacaoService
+public class NotificacaoService : INotificacaoService
 {
-    /// <summary>
-    /// Notifica sobre pagamento bem-sucedido
-    /// </summary>
-    public async Task NotificarPagamentoSucessoAsync(Pagamento pagamento, Usuario usuario)
+    private readonly IUsuarioRepository _usuarioRepository;
+
+    public NotificacaoService(IUsuarioRepository usuarioRepository)
     {
-        // Simulação de envio de notificação
-        var mensagem = $"Pagamento de R$ {pagamento.Valor:F2} processado com sucesso para {usuario.Nome}";
-        
-        // TODO: Implementar envio real (email, SMS, etc.)
-        Console.WriteLine($"[NOTIFICAÇÃO SUCESSO] {mensagem}");
-        
-        // Simular delay de envio
-        await Task.Delay(100);
+        _usuarioRepository = usuarioRepository;
     }
 
     /// <summary>
-    /// Notifica sobre falha no pagamento
+    /// Envia notificação de pagamento aprovado
     /// </summary>
-    public async Task NotificarPagamentoFalhaAsync(Pagamento pagamento, Usuario usuario)
+    public async Task EnviarNotificacaoPagamentoAprovadoAsync(Guid usuarioId, decimal valor)
     {
-        // Simulação de envio de notificação
-        var mensagem = $"Falha no pagamento de R$ {pagamento.Valor:F2} para {usuario.Nome}. Motivo: {pagamento.MensagemErro}";
-        
-        // TODO: Implementar envio real (email, SMS, etc.)
-        Console.WriteLine($"[NOTIFICAÇÃO FALHA] {mensagem}");
-        
-        // Simular delay de envio
-        await Task.Delay(100);
+        var usuario = await _usuarioRepository.ObterPorIdAsync(usuarioId);
+        if (usuario != null)
+        {
+            // Simulação - em produção enviaria email/SMS real
+            Console.WriteLine($"Notificação: Pagamento de R$ {valor:F2} aprovado para {usuario.Email}");
+        }
+        await Task.CompletedTask;
     }
 
     /// <summary>
-    /// Notifica sobre trial prestes a expirar
+    /// Envia notificação de pagamento rejeitado
     /// </summary>
-    public async Task NotificarTrialExpirandoAsync(Assinatura assinatura, Usuario usuario)
+    public async Task EnviarNotificacaoPagamentoRejeitadoAsync(Guid usuarioId, decimal valor, string motivo)
     {
-        var diasRestantes = (assinatura.DataTerminoTrial - DateTime.UtcNow)?.Days ?? 0;
-        var mensagem = $"Seu trial expira em {diasRestantes} dias, {usuario.Nome}. Cadastre um método de pagamento para continuar.";
-        
-        // TODO: Implementar envio real
-        Console.WriteLine($"[NOTIFICAÇÃO TRIAL] {mensagem}");
-        
-        await Task.Delay(100);
+        var usuario = await _usuarioRepository.ObterPorIdAsync(usuarioId);
+        if (usuario != null)
+        {
+            // Simulação - em produção enviaria email/SMS real
+            Console.WriteLine($"Notificação: Pagamento de R$ {valor:F2} rejeitado para {usuario.Email}. Motivo: {motivo}");
+        }
+        await Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Envia notificação de trial expirando
+    /// </summary>
+    public async Task EnviarNotificacaoTrialExpirandoAsync(Guid usuarioId, int diasRestantes)
+    {
+        var usuario = await _usuarioRepository.ObterPorIdAsync(usuarioId);
+        if (usuario != null)
+        {
+            // Simulação - em produção enviaria email/SMS real
+            Console.WriteLine($"Notificação: Trial expira em {diasRestantes} dias para {usuario.Email}");
+        }
+        await Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Envia notificação de assinatura cancelada
+    /// </summary>
+    public async Task EnviarNotificacaoAssinaturaCanceladaAsync(Guid usuarioId, string planoNome)
+    {
+        var usuario = await _usuarioRepository.ObterPorIdAsync(usuarioId);
+        if (usuario != null)
+        {
+            // Simulação - em produção enviaria email/SMS real
+            Console.WriteLine($"Notificação: Assinatura do plano {planoNome} cancelada para {usuario.Email}");
+        }
+        await Task.CompletedTask;
+    }
+
+    // Métodos de compatibilidade para uso interno
+    public async Task EnviarNotificacaoPagamentoSucessoAsync(Usuario usuario, decimal valor)
+    {
+        await EnviarNotificacaoPagamentoAprovadoAsync(usuario.Id, valor);
+    }
+
+    public async Task EnviarNotificacaoPagamentoFalhaAsync(Usuario usuario, string motivo)
+    {
+        await EnviarNotificacaoPagamentoRejeitadoAsync(usuario.Id, 0, motivo);
     }
 
     /// <summary>

@@ -59,6 +59,12 @@ public class Pagamento
     public string? MensagemErro { get; set; }
 
     /// <summary>
+    /// Motivo da falha no pagamento
+    /// </summary>
+    [MaxLength(500)]
+    public string? MotivoFalha { get; set; }
+
+    /// <summary>
     /// Número de tentativas de cobrança
     /// </summary>
     public int TentativasCobranca { get; set; } = 0;

@@ -1,9 +1,8 @@
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
-using TechSub.Dominio.Entidades;
-using TechSub.Dominio.Enums;
-using TechSub.Dominio.Interfaces;
+using TechSub.Aplicacao.Requests;
+using TechSub.Aplicacao.Responses;
+using TechSub.Aplicacao.Interfaces;
 
 namespace TechSub.WebAPI.Controllers;
 
@@ -12,156 +11,90 @@ namespace TechSub.WebAPI.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
 public class AssinaturasController : ControllerBase
 {
-    private readonly IAssinaturaRepository _assinaturaRepository;
-    private readonly IPlanoRepository _planoRepository;
-    private readonly IPagamentoRepository _pagamentoRepository;
-    private readonly IUsuarioRepository _usuarioRepository;
+    private readonly IAssinaturaService _assinaturaService;
 
-    public AssinaturasController(
-        IAssinaturaRepository assinaturaRepository,
-        IPlanoRepository planoRepository,
-        IPagamentoRepository pagamentoRepository,
-        IUsuarioRepository usuarioRepository)
+    public AssinaturasController(IAssinaturaService assinaturaService)
     {
-        _assinaturaRepository = assinaturaRepository;
-        _planoRepository = planoRepository;
-        _pagamentoRepository = pagamentoRepository;
-        _usuarioRepository = usuarioRepository;
+        _assinaturaService = assinaturaService;
     }
 
     /// <summary>
     /// Obter assinaturas do usuário logado
     /// </summary>
     [HttpGet("minhas")]
-    public async Task<ActionResult<IEnumerable<AssinaturaResponseDto>>> ObterMinhasAssinaturas()
+    public async Task<ActionResult<IEnumerable<AssinaturaResponse>>> ObterMinhasAssinaturas()
     {
-        var usuarioId = ObterUsuarioId();
-        var assinaturas = await _assinaturaRepository.ObterPorUsuarioAsync(usuarioId);
-
-        var response = assinaturas.Select(a => new AssinaturaResponseDto
+        try
         {
-            Id = a.Id,
-            PlanoNome = a.Plano.Nome,
-            PlanoValor = a.Plano.PrecoMensal,
-            Status = a.Status.ToString(),
-            DataInicio = a.DataInicio,
-            DataFim = a.DataTermino,
-            DataProximaCobranca = a.DataProximaCobranca,
-            Ativa = a.Status == StatusAssinatura.Ativa
-        });
-
-        return Ok(response);
+            var usuarioId = ObterUsuarioId();
+            var userRole = User.FindFirst("role")?.Value;
+            var assinaturas = await _assinaturaService.ObterPorUsuarioAsync(usuarioId, usuarioId, userRole);
+            return Ok(assinaturas);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Forbid(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Erro interno no servidor", error = ex.Message });
+        }
     }
 
     /// <summary>
     /// Obter assinatura ativa do usuário
     /// </summary>
     [HttpGet("ativa")]
-    public async Task<ActionResult<AssinaturaResponseDto>> ObterAssinaturaAtiva()
+    public async Task<ActionResult<AssinaturaResponse>> ObterAssinaturaAtiva()
     {
-        var usuarioId = ObterUsuarioId();
-        var assinatura = await _assinaturaRepository.ObterAtivaAsync(usuarioId);
-
-        if (assinatura == null)
-            return NotFound("Nenhuma assinatura ativa encontrada");
-
-        var response = new AssinaturaResponseDto
+        try
         {
-            Id = assinatura.Id,
-            PlanoNome = assinatura.Plano.Nome,
-            PlanoValor = assinatura.Plano.PrecoMensal,
-            Status = assinatura.Status.ToString(),
-            DataInicio = assinatura.DataInicio,
-            DataFim = assinatura.DataTermino,
-            DataProximaCobranca = assinatura.DataProximaCobranca,
-            Ativa = assinatura.Status == StatusAssinatura.Ativa
-        };
-
-        return Ok(response);
+            var usuarioId = ObterUsuarioId();
+            var userRole = User.FindFirst("role")?.Value;
+            var assinatura = await _assinaturaService.ObterAtivaAsync(usuarioId, usuarioId, userRole);
+            
+            if (assinatura == null)
+                return NotFound("Nenhuma assinatura ativa encontrada");
+                
+            return Ok(assinatura);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Forbid(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Erro interno no servidor", error = ex.Message });
+        }
     }
 
     /// <summary>
     /// Criar nova assinatura
     /// </summary>
     [HttpPost]
-    public async Task<ActionResult<AssinaturaResponseDto>> CriarAssinatura([FromBody] CriarAssinaturaDto request)
+    public async Task<ActionResult<AssinaturaResponse>> CriarAssinatura([FromBody] CriarAssinaturaRequest request)
     {
-        var usuarioId = ObterUsuarioId();
-
-        // Verificar se já existe assinatura ativa
-        var assinaturaExistente = await _assinaturaRepository.ObterAtivaAsync(usuarioId);
-        if (assinaturaExistente != null)
-            return BadRequest("Usuário já possui uma assinatura ativa");
-
-        // Verificar se o plano existe e está ativo
-        var plano = await _planoRepository.ObterPorIdAsync(request.PlanoId);
-        if (plano == null || !plano.Ativo)
-            return BadRequest("Plano não encontrado ou inativo");
-
-        // Verificar se é o primeiro plano do usuário para trial
-        var jaTeveAssinatura = await _assinaturaRepository.ObterPorUsuarioAsync(usuarioId);
-        var primeiraAssinatura = !jaTeveAssinatura.Any();
-        var temTrial = primeiraAssinatura && plano.TemTrial;
-
-        // Criar nova assinatura
-        var assinatura = new Assinatura
+        try
         {
-            Id = Guid.NewGuid(),
-            UsuarioId = usuarioId,
-            PlanoId = request.PlanoId,
-            Status = temTrial ? StatusAssinatura.Trial : StatusAssinatura.Ativa,
-            DataInicio = DateTime.UtcNow,
-            DataTermino = null,
-            DataProximaCobranca = temTrial 
-                ? DateTime.UtcNow.AddDays(plano.DiasTrialGratuito)
-                : (request.TipoCobranca == "mensal"
-                    ? DateTime.UtcNow.AddMonths(1)
-                    : DateTime.UtcNow.AddYears(1)),
-            Periodicidade = request.TipoCobranca == "mensal" 
-                ? PeriodicidadeCobranca.Mensal 
-                : PeriodicidadeCobranca.Anual,
-            Valor = request.TipoCobranca == "mensal" ? plano.PrecoMensal : plano.PrecoAnual,
-            EmTrial = temTrial,
-            DataTerminoTrial = temTrial ? DateTime.UtcNow.AddDays(plano.DiasTrialGratuito) : null,
-            DataCriacao = DateTime.UtcNow,
-            DataAtualizacao = DateTime.UtcNow
-        };
-
-        await _assinaturaRepository.AdicionarAsync(assinatura);
-
-        // Criar primeiro pagamento apenas se não for trial
-        if (!temTrial)
-        {
-            var pagamento = new Pagamento
-            {
-                Id = Guid.NewGuid(),
-                AssinaturaId = assinatura.Id,
-                Valor = assinatura.Valor,
-                Status = StatusPagamento.Pendente,
-                DataVencimento = DateTime.UtcNow.AddDays(7), // 7 dias para pagamento
-                DataCriacao = DateTime.UtcNow,
-                DataAtualizacao = DateTime.UtcNow
-            };
-
-            await _pagamentoRepository.AdicionarAsync(pagamento);
+            var usuarioId = ObterUsuarioId();
+            var userRole = User.FindFirst("role")?.Value;
+            var assinatura = await _assinaturaService.CriarAsync(request, usuarioId);
+            return CreatedAtAction(nameof(ObterAssinaturaAtiva), assinatura);
         }
-
-        var response = new AssinaturaResponseDto
+        catch (UnauthorizedAccessException ex)
         {
-            Id = assinatura.Id,
-            PlanoNome = plano.Nome,
-            PlanoValor = plano.PrecoMensal,
-            Status = assinatura.Status.ToString(),
-            DataInicio = assinatura.DataInicio,
-            DataFim = assinatura.DataTermino,
-            DataProximaCobranca = assinatura.DataProximaCobranca,
-            Ativa = assinatura.Status == StatusAssinatura.Ativa
-        };
-
-        return CreatedAtAction(nameof(ObterAssinaturaAtiva), response);
+            return Forbid(ex.Message);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Erro interno no servidor", error = ex.Message });
+        }
     }
 
     /// <summary>
@@ -170,27 +103,29 @@ public class AssinaturasController : ControllerBase
     [HttpPost("{id}/cancelar")]
     public async Task<ActionResult> CancelarAssinatura(Guid id)
     {
-        var usuarioId = ObterUsuarioId();
-        var assinatura = await _assinaturaRepository.ObterPorIdAsync(id);
-
-        if (assinatura == null)
-            return NotFound("Assinatura não encontrada");
-
-        if (assinatura.UsuarioId != usuarioId)
-            return Forbid("Acesso negado");
-
-        if (assinatura.Status != StatusAssinatura.Ativa)
-            return BadRequest("Assinatura já está inativa");
-
-        // Cancelar assinatura no fim do ciclo
-        assinatura.Status = StatusAssinatura.Cancelada;
-        // Definir término para o fim do ciclo pago atual
-        assinatura.DataTermino = assinatura.DataProximaCobranca ?? DateTime.UtcNow.AddMonths(1);
-        assinatura.DataAtualizacao = DateTime.UtcNow;
-
-        await _assinaturaRepository.AtualizarAsync(assinatura);
-
-        return Ok(new { message = "Assinatura cancelada com sucesso" });
+        try
+        {
+            var usuarioId = ObterUsuarioId();
+            var userRole = User.FindFirst("role")?.Value;
+            var sucesso = await _assinaturaService.CancelarAsync(id, usuarioId, userRole);
+            
+            if (!sucesso)
+                return NotFound("Assinatura não encontrada");
+                
+            return Ok(new { message = "Assinatura cancelada com sucesso" });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Forbid(ex.Message);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Erro interno no servidor", error = ex.Message });
+        }
     }
 
     /// <summary>
@@ -199,80 +134,73 @@ public class AssinaturasController : ControllerBase
     [HttpPost("{id}/renovar")]
     public async Task<ActionResult> RenovarAssinatura(Guid id)
     {
-        var usuarioId = ObterUsuarioId();
-        var assinatura = await _assinaturaRepository.ObterPorIdAsync(id);
-
-        if (assinatura == null)
-            return NotFound("Assinatura não encontrada");
-
-        if (assinatura.UsuarioId != usuarioId)
-            return Forbid("Acesso negado");
-
-        if (assinatura.Status != StatusAssinatura.Expirada)
-            return BadRequest("Apenas assinaturas expiradas podem ser renovadas");
-
-        // Renovar assinatura
-        assinatura.Status = StatusAssinatura.Ativa;
-        assinatura.DataInicio = DateTime.UtcNow;
-        assinatura.DataTermino = null;
-        assinatura.DataProximaCobranca = DateTime.UtcNow.AddMonths(1);
-        assinatura.DataAtualizacao = DateTime.UtcNow;
-
-        await _assinaturaRepository.AtualizarAsync(assinatura);
-
-        // Criar novo pagamento para renovação
-        var pagamento = new Pagamento
+        try
         {
-            Id = Guid.NewGuid(),
-            AssinaturaId = assinatura.Id,
-            Valor = assinatura.Valor,
-            Status = StatusPagamento.Pendente,
-            DataVencimento = DateTime.UtcNow.AddDays(7),
-            DataCriacao = DateTime.UtcNow,
-            DataAtualizacao = DateTime.UtcNow
-        };
-
-        await _pagamentoRepository.AdicionarAsync(pagamento);
-
-        return Ok(new { message = "Assinatura renovada com sucesso" });
+            var usuarioId = ObterUsuarioId();
+            var userRole = User.FindFirst("role")?.Value;
+            var sucesso = await _assinaturaService.RenovarAsync(id, usuarioId, userRole);
+            
+            if (!sucesso)
+                return NotFound("Assinatura não encontrada");
+                
+            return Ok(new { message = "Assinatura renovada com sucesso" });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Forbid(ex.Message);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Erro interno no servidor", error = ex.Message });
+        }
     }
 
     /// <summary>
     /// Listar todas as assinaturas (apenas Admin)
     /// </summary>
     [HttpGet]
-    [Authorize(Roles = "Admin")]
-    public async Task<ActionResult<IEnumerable<AssinaturaAdminDto>>> ListarTodasAssinaturas()
+    public async Task<ActionResult<IEnumerable<AssinaturaAdminResponse>>> ListarTodasAssinaturas()
     {
-        var assinaturas = await _assinaturaRepository.ObterTodasAsync();
-
-        var response = assinaturas.Select(a => new AssinaturaAdminDto
+        try
         {
-            Id = a.Id,
-            UsuarioNome = a.Usuario.Nome,
-            UsuarioEmail = a.Usuario.Email,
-            PlanoNome = a.Plano.Nome,
-            PlanoValor = a.Plano.PrecoMensal,
-            Status = a.Status.ToString(),
-            DataInicio = a.DataInicio,
-            DataFim = a.DataTermino,
-            DataProximaCobranca = a.DataProximaCobranca,
-            Ativa = a.Status == StatusAssinatura.Ativa,
-            DataCriacao = a.DataCriacao
-        });
-
-        return Ok(response);
+            var userRole = User.FindFirst("role")?.Value;
+            var assinaturas = await _assinaturaService.ObterTodasAsync(userRole);
+            return Ok(assinaturas);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Forbid(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Erro interno no servidor", error = ex.Message });
+        }
     }
 
     /// <summary>
     /// Obter relatório de MRR (apenas Admin)
     /// </summary>
     [HttpGet("relatorio/mrr")]
-    [Authorize(Roles = "Admin")]
     public async Task<ActionResult<decimal>> ObterMRR()
     {
-        var mrr = await _assinaturaRepository.CalcularMRRAsync();
-        return Ok(new { mrr = mrr, periodo = DateTime.UtcNow.ToString("yyyy-MM") });
+        try
+        {
+            var userRole = User.FindFirst("role")?.Value;
+            var mrr = await _assinaturaService.CalcularMRRAsync(userRole);
+            return Ok(new { mrr = mrr, periodo = DateTime.UtcNow.ToString("yyyy-MM") });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Forbid(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Erro interno no servidor", error = ex.Message });
+        }
     }
 
     private Guid ObterUsuarioId()
@@ -286,44 +214,3 @@ public class AssinaturasController : ControllerBase
     }
 }
 
-/// <summary>
-/// DTO para resposta de assinatura
-/// </summary>
-public class AssinaturaResponseDto
-{
-    public Guid Id { get; set; }
-    public string PlanoNome { get; set; } = string.Empty;
-    public decimal PlanoValor { get; set; }
-    public string Status { get; set; } = string.Empty;
-    public DateTime DataInicio { get; set; }
-    public DateTime? DataFim { get; set; }
-    public DateTime? DataProximaCobranca { get; set; }
-    public bool Ativa { get; set; }
-}
-
-/// <summary>
-/// DTO para criar assinatura
-/// </summary>
-public class CriarAssinaturaDto
-{
-    public Guid PlanoId { get; set; }
-    public string TipoCobranca { get; set; } = "mensal"; // mensal ou anual
-}
-
-/// <summary>
-/// DTO para visualização admin de assinaturas
-/// </summary>
-public class AssinaturaAdminDto
-{
-    public Guid Id { get; set; }
-    public string UsuarioNome { get; set; } = string.Empty;
-    public string UsuarioEmail { get; set; } = string.Empty;
-    public string PlanoNome { get; set; } = string.Empty;
-    public decimal PlanoValor { get; set; }
-    public string Status { get; set; } = string.Empty;
-    public DateTime DataInicio { get; set; }
-    public DateTime? DataFim { get; set; }
-    public DateTime? DataProximaCobranca { get; set; }
-    public bool Ativa { get; set; }
-    public DateTime DataCriacao { get; set; }
-}

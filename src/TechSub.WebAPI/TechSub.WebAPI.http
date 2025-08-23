@@ -1,0 +1,6 @@
+@TechSub.WebAPI_HostAddress = http://localhost:5039
+
+GET {{TechSub.WebAPI_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

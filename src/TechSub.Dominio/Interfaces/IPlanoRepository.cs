@@ -13,14 +13,14 @@ public interface IPlanoRepository
     Task<Plano?> ObterPorIdAsync(Guid id);
 
     /// <summary>
-    /// Obtém um plano por nome
+    /// Obtém planos ativos ordenados
     /// </summary>
-    Task<Plano?> ObterPorNomeAsync(string nome);
+    Task<IEnumerable<Plano>> ObterAtivosAsync();
 
     /// <summary>
-    /// Obtém todos os planos ativos
+    /// Obtém plano por nome
     /// </summary>
-    Task<IEnumerable<Plano>> ObterTodosAtivosAsync();
+    Task<Plano?> ObterPorNomeAsync(string nome);
 
     /// <summary>
     /// Obtém todos os planos ordenados por ordem de exibição

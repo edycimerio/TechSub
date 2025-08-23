@@ -46,6 +46,17 @@ public class Usuario
     public string? Provedor { get; set; }
 
     /// <summary>
+    /// URL do avatar do usuário
+    /// </summary>
+    [MaxLength(500)]
+    public string? AvatarUrl { get; set; }
+
+    /// <summary>
+    /// Data do último login
+    /// </summary>
+    public DateTime? DataUltimoLogin { get; set; }
+
+    /// <summary>
     /// Data de criação do usuário
     /// </summary>
     public DateTime DataCriacao { get; set; } = DateTime.UtcNow;

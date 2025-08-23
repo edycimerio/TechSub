@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
+using TechSub.Aplicacao.Services;
 using TechSub.Dominio.Interfaces;
 using TechSub.Infraestrutura.Data;
 using TechSub.Infraestrutura.Repositories;
@@ -16,9 +17,23 @@ builder.Services.AddControllers();
 builder.Services.AddDbContext<TechSubDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+// Configurar autorização com políticas
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
+    options.AddPolicy("UserOrAdmin", policy => policy.RequireRole("User", "Admin"));
+});
+
 // Configurar Repositories
 builder.Services.AddScoped<IUsuarioRepository, UsuarioRepository>();
 builder.Services.AddScoped<IPlanoRepository, PlanoRepository>();
+builder.Services.AddScoped<IAssinaturaRepository, AssinaturaRepository>();
+builder.Services.AddScoped<IPagamentoRepository, PagamentoRepository>();
+
+// Configurar Services
+builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<AssinaturaService>();
+builder.Services.AddScoped<NotificacaoService>();
 
 // Configurar JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("Authentication:JwtSettings");

@@ -23,15 +23,24 @@ public interface IAssinaturaRepository
     /// </summary>
     Task<Assinatura?> ObterAtivaDoUsuarioAsync(Guid usuarioId);
 
-    /// <summary>
     /// Obtém assinaturas por status
     /// </summary>
     Task<IEnumerable<Assinatura>> ObterPorStatusAsync(StatusAssinatura status);
 
     /// <summary>
-    /// Obtém assinaturas que vencem em determinado período
+    /// Obter relatório de assinaturas por período
     /// </summary>
-    Task<IEnumerable<Assinatura>> ObterVencendoAsync(DateTime dataInicio, DateTime dataFim);
+    Task<IEnumerable<Assinatura>> ObterRelatorioAsync(DateTime dataInicio, DateTime dataFim);
+
+    /// <summary>
+    /// Obter todas as assinaturas
+    /// </summary>
+    Task<IEnumerable<Assinatura>> ObterTodasAsync();
+
+    /// <summary>
+    /// Obter assinatura ativa do usuário
+    /// </summary>
+    Task<Assinatura?> ObterAtivaAsync(Guid usuarioId);
 
     /// <summary>
     /// Adiciona uma nova assinatura
@@ -57,4 +66,9 @@ public interface IAssinaturaRepository
     /// Calcula MRR (Monthly Recurring Revenue) por mês/ano
     /// </summary>
     Task<decimal> CalcularMrrAsync(int mes, int ano);
+
+    /// <summary>
+    /// Calcular MRR (Monthly Recurring Revenue)
+    /// </summary>
+    Task<decimal> CalcularMRRAsync();
 }

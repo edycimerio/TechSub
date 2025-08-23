@@ -27,11 +27,10 @@ public class PlanoRepository : IPlanoRepository
     public async Task<Plano?> ObterPorNomeAsync(string nome)
     {
         return await _context.Planos
-            .Include(p => p.Assinaturas)
-            .FirstOrDefaultAsync(p => p.Nome == nome);
+            .FirstOrDefaultAsync(p => p.Nome.ToLower() == nome.ToLower());
     }
 
-    public async Task<IEnumerable<Plano>> ObterTodosAtivosAsync()
+    public async Task<IEnumerable<Plano>> ObterAtivosAsync()
     {
         return await _context.Planos
             .Where(p => p.Ativo)

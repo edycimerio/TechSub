@@ -14,9 +14,9 @@ public interface IPlanoService
     Task<IEnumerable<PlanoResponse>> ObterPlanosAtivosAsync();
 
     /// <summary>
-    /// Obtém todos os planos (admin)
+    /// Obtém todos os planos
     /// </summary>
-    Task<IEnumerable<PlanoResponse>> ObterTodosAsync(string? userRole);
+    Task<IEnumerable<PlanoResponse>> ObterTodosAsync();
 
     /// <summary>
     /// Obtém plano por ID
@@ -26,15 +26,15 @@ public interface IPlanoService
     /// <summary>
     /// Cria novo plano
     /// </summary>
-    Task<PlanoResponse> CriarAsync(CriarPlanoRequest dto, string? userRole);
+    Task<PlanoResponse> CriarAsync(CriarPlanoRequest dto);
 
     /// <summary>
     /// Atualiza plano existente
     /// </summary>
-    Task<PlanoResponse?> AtualizarAsync(Guid id, AtualizarPlanoRequest dto, string? userRole);
+    Task<PlanoResponse?> AtualizarAsync(Guid id, AtualizarPlanoRequest dto);
 
     /// <summary>
     /// Remove plano
     /// </summary>
-    Task<bool> RemoverAsync(Guid id, string? userRole);
+    Task<bool> RemoverAsync(Guid id);
 }

@@ -110,4 +110,18 @@ public class NotificacaoService : INotificacaoService
         
         await Task.Delay(100);
     }
+
+    /// <summary>
+    /// Envia notificação de assinatura renovada
+    /// </summary>
+    public async Task EnviarNotificacaoAssinaturaRenovadaAsync(Guid usuarioId, string planoNome, DateTime? proximaCobranca)
+    {
+        var usuario = await _usuarioRepository.ObterPorIdAsync(usuarioId);
+        if (usuario != null)
+        {
+            var dataCobranca = proximaCobranca?.ToString("dd/MM/yyyy") ?? "não definida";
+            Console.WriteLine($"Notificação: Assinatura do plano {planoNome} renovada para {usuario.Email}. Próxima cobrança: {dataCobranca}");
+        }
+        await Task.CompletedTask;
+    }
 }

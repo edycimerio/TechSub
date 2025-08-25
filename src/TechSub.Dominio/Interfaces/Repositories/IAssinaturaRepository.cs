@@ -9,9 +9,14 @@ namespace TechSub.Dominio.Interfaces.Repositories;
 public interface IAssinaturaRepository
 {
     /// <summary>
-    /// Obtém todas as assinaturas
+    /// Obtém dados para relatório de MRR
     /// </summary>
-    Task<IEnumerable<Assinatura>> ObterTodosAsync();
+    Task<IEnumerable<Assinatura>> ObterDadosMRRAsync();
+
+    /// <summary>
+    /// Obtém todas as assinaturas com usuário e plano carregados
+    /// </summary>
+    Task<IEnumerable<Assinatura>> ObterTodasComUsuarioEPlanoAsync();
 
     /// <summary>
     /// Obtém todas as assinaturas

@@ -38,12 +38,6 @@ public class UsuarioRepository : IUsuarioRepository
             .FirstOrDefaultAsync(u => u.Provedor == provedor && u.ProvedorId == provedorId);
     }
 
-    public async Task<Usuario?> ObterPorGoogleIdAsync(string googleId)
-    {
-        return await _context.Usuarios
-            .Include(u => u.Assinaturas)
-            .FirstOrDefaultAsync(u => u.GoogleId == googleId);
-    }
 
     public async Task<IEnumerable<Usuario>> ObterTodosAsync()
     {

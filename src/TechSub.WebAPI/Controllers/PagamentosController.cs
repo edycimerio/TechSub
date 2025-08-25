@@ -122,54 +122,6 @@ public class PagamentosController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Listar todos os pagamentos (apenas Admin)
-    /// </summary>
-    [HttpGet]
-    [Authorize(Roles = "Admin")]
-    public async Task<ActionResult<IEnumerable<PagamentoResponse>>> ListarTodosPagamentos(
-        [FromQuery] string? status = null,
-        [FromQuery] DateTime? dataInicio = null,
-        [FromQuery] DateTime? dataFim = null)
-    {
-        try
-        {
-            var userRole = User.FindFirst("role")?.Value;
-            var pagamentos = await _pagamentoService.ObterTodosAsync(userRole, status, dataInicio, dataFim);
-            return Ok(pagamentos);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            return Forbid(ex.Message);
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, new { message = "Erro interno no servidor", error = ex.Message });
-        }
-    }
-
-    /// <summary>
-    /// Obter estatísticas de pagamentos (apenas Admin)
-    /// </summary>
-    [HttpGet("estatisticas")]
-    [Authorize(Roles = "Admin")]
-    public async Task<ActionResult> ObterEstatisticas()
-    {
-        try
-        {
-            var userRole = User.FindFirst("role")?.Value;
-            var estatisticas = await _pagamentoService.ObterEstatisticasAsync(userRole);
-            return Ok(estatisticas);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            return Forbid(ex.Message);
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, new { message = "Erro interno no servidor", error = ex.Message });
-        }
-    }
 
     private Guid ObterUsuarioId()
     {

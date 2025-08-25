@@ -38,6 +38,7 @@ builder.Services.AddScoped<IPlanoService, PlanoService>();
 builder.Services.AddScoped<IAssinaturaService, AssinaturaService>();
 builder.Services.AddScoped<IPagamentoService, PagamentoService>();
 builder.Services.AddScoped<INotificacaoService, NotificacaoService>();
+builder.Services.AddScoped<IUsuarioMetodoPagamentoRepository, UsuarioMetodoPagamentoRepository>();
 
 // Configurar JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("Authentication:JwtSettings");
@@ -60,11 +61,6 @@ builder.Services.AddAuthentication(options =>
         ValidAudience = jwtSettings["Audience"],
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey!))
     };
-})
-.AddGoogle(options =>
-{
-    options.ClientId = builder.Configuration["Authentication:GoogleAuth:ClientId"]!;
-    options.ClientSecret = builder.Configuration["Authentication:GoogleAuth:ClientSecret"]!;
 });
 
 // Configurar Swagger/OpenAPI com autenticação
@@ -119,23 +115,13 @@ app.UseSwaggerUI(c =>
     c.DocumentTitle = "TechSub API - Documentação";
 });
 
-// Abrir navegador automaticamente no Swagger
-if (app.Environment.IsDevelopment())
+// Configurar CORS
+app.UseCors(policy =>
 {
-    var url = "http://localhost:5000";
-    try
-    {
-        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-        {
-            FileName = url,
-            UseShellExecute = true
-        });
-    }
-    catch
-    {
-        // Ignora erro se não conseguir abrir o navegador
-    }
-}
+    policy.AllowAnyOrigin()
+          .AllowAnyMethod()
+          .AllowAnyHeader();
+});
 
 app.UseHttpsRedirection();
 

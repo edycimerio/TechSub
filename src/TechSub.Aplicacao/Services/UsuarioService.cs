@@ -19,15 +19,10 @@ public class UsuarioService : IUsuarioService
     }
 
     /// <summary>
-    /// Obtém todos os usuários (admin)
+    /// Obtém todos os usuários
     /// </summary>
     public async Task<IEnumerable<UsuarioResponse>> ObterTodosAsync(string? userRole = null)
     {
-        // Validar autorização - apenas Admin pode listar todos os usuários
-        if (userRole != "Admin")
-        {
-            throw new UnauthorizedAccessException("Acesso negado. Apenas administradores podem listar usuários.");
-        }
 
         var usuarios = await _usuarioRepository.ObterTodosAsync();
         
@@ -36,7 +31,6 @@ public class UsuarioService : IUsuarioService
             Id = u.Id,
             Nome = u.Nome,
             Email = u.Email,
-            GoogleId = u.GoogleId,
             AvatarUrl = u.AvatarUrl,
             Ativo = u.Ativo,
             Role = u.Role,
@@ -50,8 +44,8 @@ public class UsuarioService : IUsuarioService
     /// </summary>
     public async Task<UsuarioResponse?> ObterPorIdAsync(Guid id, Guid usuarioLogadoId, string? userRole = null)
     {
-        // Validar autorização - usuário só pode ver seus próprios dados, exceto Admin
-        if (userRole != "Admin" && usuarioLogadoId != id)
+        // Usuário só pode ver seus próprios dados
+        if (usuarioLogadoId != id)
         {
             throw new UnauthorizedAccessException("Acesso negado. Você só pode acessar seus próprios dados.");
         }
@@ -64,7 +58,6 @@ public class UsuarioService : IUsuarioService
             Id = usuario.Id,
             Nome = usuario.Nome,
             Email = usuario.Email,
-            GoogleId = usuario.GoogleId,
             AvatarUrl = usuario.AvatarUrl,
             Ativo = usuario.Ativo,
             Role = usuario.Role,
@@ -121,8 +114,8 @@ public class UsuarioService : IUsuarioService
     /// </summary>
     public async Task<UsuarioResponse?> AtualizarAsync(Guid id, AtualizarUsuarioRequest dto, Guid usuarioLogadoId, string? userRole = null)
     {
-        // Validar autorização - usuário só pode atualizar seus próprios dados, exceto Admin
-        if (userRole != "Admin" && usuarioLogadoId != id)
+        // Usuário só pode atualizar seus próprios dados
+        if (usuarioLogadoId != id)
         {
             throw new UnauthorizedAccessException("Acesso negado. Você só pode atualizar seus próprios dados.");
         }
@@ -142,7 +135,6 @@ public class UsuarioService : IUsuarioService
             Id = usuario.Id,
             Nome = usuario.Nome,
             Email = usuario.Email,
-            GoogleId = usuario.GoogleId,
             AvatarUrl = usuario.AvatarUrl,
             Ativo = usuario.Ativo,
             Role = usuario.Role,
@@ -174,11 +166,7 @@ public class UsuarioService : IUsuarioService
     /// </summary>
     public async Task<EstatisticasUsuarioResponse> ObterEstatisticasAsync(string? userRole = null)
     {
-        // Validar autorização - apenas Admin pode ver estatísticas
-        if (userRole != "Admin")
-        {
-            throw new UnauthorizedAccessException("Acesso negado. Apenas administradores podem ver estatísticas.");
-        }
+        // Estatísticas disponíveis para todos os usuários autenticados
 
         var usuarios = await _usuarioRepository.ObterTodosAsync();
         

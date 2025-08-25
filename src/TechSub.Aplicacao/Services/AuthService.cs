@@ -9,7 +9,6 @@ using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
-using Google.Apis.Auth;
 
 namespace TechSub.Aplicacao.Services;
 
@@ -104,56 +103,92 @@ public class AuthService : IAuthService
     }
 
     /// <summary>
-    /// Processa login com Google OAuth
+    /// Login com email e senha
     /// </summary>
-    public async Task<Usuario> ProcessarLoginGoogleAsync(string googleId, string email, string nome, string? avatarUrl = null)
+    public async Task<LoginResponse> LoginAsync(string email, string senha)
     {
-        // Verifica se usuário já existe pelo provedor Google
-        var usuarioExistente = await _usuarioRepository.ObterPorProvedorAsync("Google", googleId);
+        var usuario = await _usuarioRepository.ObterPorEmailAsync(email);
         
+        if (usuario == null || !BCrypt.Net.BCrypt.Verify(senha, usuario.SenhaHash))
+        {
+            throw new UnauthorizedAccessException("Email ou senha inválidos");
+        }
+
+        if (!usuario.Ativo)
+        {
+            throw new UnauthorizedAccessException("Usuário inativo");
+        }
+
+        // Atualiza último login
+        usuario.DataUltimoLogin = DateTime.UtcNow;
+        await _usuarioRepository.AtualizarAsync(usuario);
+
+        var token = GerarTokenJwt(usuario);
+        
+        return new LoginResponse
+        {
+            AccessToken = token,
+            Usuario = new PerfilUsuarioResponse
+            {
+                Id = usuario.Id,
+                Nome = usuario.Nome,
+                Email = usuario.Email,
+                AvatarUrl = usuario.AvatarUrl,
+                DataCriacao = usuario.DataCriacao,
+                DataUltimoLogin = usuario.DataUltimoLogin,
+                Ativo = usuario.Ativo
+            },
+            ExpiresAt = DateTime.UtcNow.AddHours(24)
+        };
+    }
+
+    /// <summary>
+    /// Registra novo usuário
+    /// </summary>
+    public async Task<LoginResponse> RegistrarUsuarioAsync(string nome, string email, string senha)
+    {
+        // Verifica se email já existe
+        var usuarioExistente = await _usuarioRepository.ObterPorEmailAsync(email);
         if (usuarioExistente != null)
         {
-            // Atualiza dados se necessário
-            usuarioExistente.Nome = nome;
-            usuarioExistente.AvatarUrl = avatarUrl;
-            usuarioExistente.DataUltimoLogin = DateTime.UtcNow;
-            
-            await _usuarioRepository.AtualizarAsync(usuarioExistente);
-            
-            return usuarioExistente;
+            throw new InvalidOperationException("Email já está em uso");
         }
 
-        // Verifica se já existe usuário com mesmo email
-        var usuarioPorEmail = await _usuarioRepository.ObterPorEmailAsync(email);
-        if (usuarioPorEmail != null)
-        {
-            // Vincula conta Google ao usuário existente
-            usuarioPorEmail.Provedor = "Google";
-            usuarioPorEmail.ProvedorId = googleId;
-            usuarioPorEmail.DataUltimoLogin = DateTime.UtcNow;
-            
-            await _usuarioRepository.AtualizarAsync(usuarioPorEmail);
-            
-            return usuarioPorEmail;
-        }
+        // Cria hash da senha
+        var senhaHash = BCrypt.Net.BCrypt.HashPassword(senha);
 
-        // Cria novo usuário
         var novoUsuario = new Usuario
         {
             Id = Guid.NewGuid(),
             Nome = nome,
             Email = email,
-            Provedor = "Google",
-            ProvedorId = googleId,
-            AvatarUrl = avatarUrl,
+            SenhaHash = senhaHash,
+            Provedor = "local",
+            Role = "User", // Role padrão
             Ativo = true,
             DataCriacao = DateTime.UtcNow,
             DataUltimoLogin = DateTime.UtcNow
         };
 
         await _usuarioRepository.AdicionarAsync(novoUsuario);
+
+        var token = GerarTokenJwt(novoUsuario);
         
-        return novoUsuario;
+        return new LoginResponse
+        {
+            AccessToken = token,
+            Usuario = new PerfilUsuarioResponse
+            {
+                Id = novoUsuario.Id,
+                Nome = novoUsuario.Nome,
+                Email = novoUsuario.Email,
+                AvatarUrl = novoUsuario.AvatarUrl,
+                DataCriacao = novoUsuario.DataCriacao,
+                DataUltimoLogin = novoUsuario.DataUltimoLogin,
+                Ativo = novoUsuario.Ativo
+            },
+            ExpiresAt = DateTime.UtcNow.AddHours(24)
+        };
     }
 
     /// <summary>

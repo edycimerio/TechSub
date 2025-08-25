@@ -1,5 +1,3 @@
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -24,53 +22,50 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
-    /// Inicia o processo de login com Google OAuth
+    /// Login com email e senha
     /// </summary>
-    [HttpGet("google-login")]
-    public IActionResult GoogleLogin(string? returnUrl = null)
-    {
-        var redirectUrl = Url.Action(nameof(GoogleCallback), "Auth", new { returnUrl });
-        var properties = new AuthenticationProperties { RedirectUri = redirectUrl };
-        return Challenge(properties, GoogleDefaults.AuthenticationScheme);
-    }
-
-    /// <summary>
-    /// Callback do Google OAuth - processa o retorno da autenticação
-    /// </summary>
-    [HttpGet("google-callback")]
-    public async Task<IActionResult> GoogleCallback(string? returnUrl = null)
+    [HttpPost("login")]
+    public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
         try
         {
-            var authenticateResult = await HttpContext.AuthenticateAsync(GoogleDefaults.AuthenticationScheme);
-            
-            if (!authenticateResult.Succeeded)
+            if (string.IsNullOrEmpty(request.Email) || string.IsNullOrEmpty(request.Senha))
             {
-                return BadRequest(new { message = "Falha na autenticação com Google" });
+                return BadRequest(new { message = "Email e senha são obrigatórios" });
             }
 
-            var claims = authenticateResult.Principal?.Claims;
-            var googleId = claims?.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
-            var email = claims?.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value;
-            var nome = claims?.FirstOrDefault(c => c.Type == ClaimTypes.Name)?.Value;
-            var avatarUrl = claims?.FirstOrDefault(c => c.Type == "picture")?.Value;
+            var response = await _authService.LoginAsync(request.Email, request.Senha);
+            return Ok(response);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Unauthorized(new { message = "Email ou senha inválidos" });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Erro interno no servidor", error = ex.Message });
+        }
+    }
 
-            if (string.IsNullOrEmpty(googleId) || string.IsNullOrEmpty(email) || string.IsNullOrEmpty(nome))
+    /// <summary>
+    /// Registrar novo usuário
+    /// </summary>
+    [HttpPost("registrar")]
+    public async Task<IActionResult> Registrar([FromBody] RegistrarUsuarioRequest request)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(request.Email) || string.IsNullOrEmpty(request.Senha) || string.IsNullOrEmpty(request.Nome))
             {
-                return BadRequest(new { message = "Dados incompletos do Google" });
+                return BadRequest(new { message = "Nome, email e senha são obrigatórios" });
             }
 
-            var response = await _authService.ProcessarLoginGoogleAsync(googleId, email, nome, avatarUrl);
-
-            // Se for uma requisição de API, retorna JSON
-            if (Request.Headers.Accept.ToString().Contains("application/json"))
-            {
-                return Ok(response);
-            }
-
-            // Se for navegador, redireciona com token (para desenvolvimento)
-            var frontendUrl = returnUrl ?? "http://localhost:5000";
-            return Redirect($"{frontendUrl}?token={response.AccessToken}");
+            var response = await _authService.RegistrarUsuarioAsync(request.Nome, request.Email, request.Senha);
+            return Ok(response);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
         }
         catch (Exception ex)
         {

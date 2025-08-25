@@ -10,9 +10,14 @@ namespace TechSub.Aplicacao.Interfaces;
 public interface IAuthService
 {
     /// <summary>
-    /// Processa login com Google OAuth
+    /// Login com email e senha
     /// </summary>
-    Task<Usuario> ProcessarLoginGoogleAsync(string googleId, string email, string nome, string? avatarUrl = null);
+    Task<LoginResponse> LoginAsync(string email, string senha);
+
+    /// <summary>
+    /// Registra novo usuário
+    /// </summary>
+    Task<LoginResponse> RegistrarUsuarioAsync(string nome, string email, string senha);
 
     /// <summary>
     /// Gera token JWT

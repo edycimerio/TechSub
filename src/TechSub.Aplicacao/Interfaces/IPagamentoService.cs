@@ -14,9 +14,9 @@ public interface IPagamentoService
     Task<IEnumerable<PagamentoResponse>> ObterHistoricoUsuarioAsync(Guid usuarioId);
 
     /// <summary>
-    /// Obtém todos os pagamentos (admin)
+    /// Obtém todos os pagamentos
     /// </summary>
-    Task<IEnumerable<PagamentoResponse>> ObterTodosAsync(string? userRole, string? status = null, DateTime? dataInicio = null, DateTime? dataFim = null);
+    Task<IEnumerable<PagamentoResponse>> ObterTodosAsync(string? status = null, DateTime? dataInicio = null, DateTime? dataFim = null);
 
     /// <summary>
     /// Obtém detalhes de um pagamento
@@ -36,5 +36,5 @@ public interface IPagamentoService
     /// <summary>
     /// Obtém estatísticas de pagamentos
     /// </summary>
-    Task<object> ObterEstatisticasAsync(string? userRole);
+    Task<object> ObterEstatisticasAsync();
 }

@@ -32,6 +32,11 @@ public class TechSubDbContext : DbContext
     /// </summary>
     public DbSet<Pagamento> Pagamentos { get; set; } = null!;
 
+    /// <summary>
+    /// Métodos de pagamento dos usuários
+    /// </summary>
+    public DbSet<UsuarioMetodoPagamento> UsuarioMetodoPagamento { get; set; } = null!;
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -43,9 +48,11 @@ public class TechSubDbContext : DbContext
             entity.HasIndex(u => u.Email).IsUnique();
             entity.Property(u => u.Nome).IsRequired().HasMaxLength(200);
             entity.Property(u => u.Email).IsRequired().HasMaxLength(255);
-            entity.Property(u => u.HashSenha).HasMaxLength(500);
+            entity.Property(u => u.SenhaHash).HasMaxLength(500);
             entity.Property(u => u.ProvedorId).HasMaxLength(255);
             entity.Property(u => u.Provedor).HasMaxLength(50);
+            entity.Property(u => u.AvatarUrl).HasMaxLength(500);
+            entity.Property(u => u.Role).HasMaxLength(50);
             entity.Property(u => u.DataCriacao).HasDefaultValueSql("NOW()");
             entity.Property(u => u.DataAtualizacao).HasDefaultValueSql("NOW()");
         });

@@ -31,19 +31,19 @@ public class Usuario
     /// Hash da senha (apenas para login tradicional)
     /// </summary>
     [MaxLength(500)]
-    public string? HashSenha { get; set; }
+    public string? SenhaHash { get; set; }
 
     /// <summary>
-    /// ID do provedor externo (Google OAuth)
+    /// ID do provedor externo (se houver)
     /// </summary>
     [MaxLength(255)]
     public string? ProvedorId { get; set; }
 
     /// <summary>
-    /// Nome do provedor (Google, Microsoft, etc.)
+    /// Nome do provedor (local, Google, etc.)
     /// </summary>
     [MaxLength(50)]
-    public string? Provedor { get; set; }
+    public string? Provedor { get; set; } = "local";
 
     /// <summary>
     /// URL do avatar do usuário
@@ -77,17 +77,6 @@ public class Usuario
     [MaxLength(50)]
     public string Role { get; set; } = "User";
 
-    /// <summary>
-    /// ID do Google OAuth (compatibilidade)
-    /// </summary>
-    [MaxLength(255)]
-    public string? GoogleId { get; set; }
-
-    /// <summary>
-    /// Token de acesso (para compatibilidade com controllers)
-    /// </summary>
-    [MaxLength(1000)]
-    public string? AccessToken { get; set; }
 
     /// <summary>
     /// Assinatura ativa do usuário (relacionamento 1:1)

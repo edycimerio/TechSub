@@ -42,14 +42,10 @@ public class PlanoService : IPlanoService
     }
 
     /// <summary>
-    /// Obtém todos os planos (admin)
+    /// Obtém todos os planos
     /// </summary>
-    public async Task<IEnumerable<PlanoResponse>> ObterTodosAsync(string? userRole)
+    public async Task<IEnumerable<PlanoResponse>> ObterTodosAsync()
     {
-        // Validação de autorização
-        if (userRole != "Admin")
-            throw new UnauthorizedAccessException("Acesso negado. Apenas administradores podem listar todos os planos.");
-            
         var planos = await _planoRepository.ObterTodosAsync();
         
         return planos.Select(p => new PlanoResponse
@@ -95,11 +91,8 @@ public class PlanoService : IPlanoService
     /// <summary>
     /// Cria novo plano
     /// </summary>
-    public async Task<PlanoResponse> CriarAsync(CriarPlanoRequest dto, string? userRole)
+    public async Task<PlanoResponse> CriarAsync(CriarPlanoRequest dto)
     {
-        // Validação de autorização
-        if (userRole != "Admin")
-            throw new UnauthorizedAccessException("Acesso negado. Apenas administradores podem criar planos.");
             
         // Validação de nome duplicado
         if (await _planoRepository.NomeExisteAsync(dto.Nome))
@@ -140,11 +133,8 @@ public class PlanoService : IPlanoService
     /// <summary>
     /// Atualiza plano existente
     /// </summary>
-    public async Task<PlanoResponse?> AtualizarAsync(Guid id, AtualizarPlanoRequest dto, string? userRole)
+    public async Task<PlanoResponse?> AtualizarAsync(Guid id, AtualizarPlanoRequest dto)
     {
-        // Validação de autorização
-        if (userRole != "Admin")
-            throw new UnauthorizedAccessException("Acesso negado. Apenas administradores podem atualizar planos.");
             
         var plano = await _planoRepository.ObterPorIdAsync(id);
         if (plano == null) return null;
@@ -185,11 +175,8 @@ public class PlanoService : IPlanoService
     /// <summary>
     /// Remove plano
     /// </summary>
-    public async Task<bool> RemoverAsync(Guid id, string? userRole)
+    public async Task<bool> RemoverAsync(Guid id)
     {
-        // Validação de autorização
-        if (userRole != "Admin")
-            throw new UnauthorizedAccessException("Acesso negado. Apenas administradores podem remover planos.");
             
         var plano = await _planoRepository.ObterPorIdAsync(id);
         if (plano == null) return false;

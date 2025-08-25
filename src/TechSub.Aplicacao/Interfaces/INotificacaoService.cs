@@ -24,4 +24,9 @@ public interface INotificacaoService
     /// Envia notificação de assinatura cancelada
     /// </summary>
     Task EnviarNotificacaoAssinaturaCanceladaAsync(Guid usuarioId, string planoNome);
+
+    /// <summary>
+    /// Envia notificação de assinatura renovada
+    /// </summary>
+    Task EnviarNotificacaoAssinaturaRenovadaAsync(Guid usuarioId, string planoNome, DateTime? proximaCobranca);
 }

@@ -1,8 +1,9 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using TechSub.Aplicacao.Interfaces;
 using TechSub.Aplicacao.Requests;
 using TechSub.Aplicacao.Responses;
-using TechSub.Aplicacao.Interfaces;
 
 namespace TechSub.WebAPI.Controllers;
 
@@ -11,6 +12,7 @@ namespace TechSub.WebAPI.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public class AssinaturasController : ControllerBase
 {
     private readonly IAssinaturaService _assinaturaService;
@@ -21,17 +23,18 @@ public class AssinaturasController : ControllerBase
     }
 
     /// <summary>
-    /// Obter assinaturas do usuário logado
+    /// Obter assinatura por ID
     /// </summary>
-    [HttpGet("minhas")]
-    public async Task<ActionResult<IEnumerable<AssinaturaResponse>>> ObterMinhasAssinaturas()
+    [HttpGet("{id}")]
+    public async Task<ActionResult<AssinaturaResponse>> ObterPorId(Guid id)
     {
         try
         {
             var usuarioId = ObterUsuarioId();
-            var userRole = User.FindFirst("role")?.Value;
-            var assinaturas = await _assinaturaService.ObterPorUsuarioAsync(usuarioId, usuarioId, userRole);
-            return Ok(assinaturas);
+            var assinatura = await _assinaturaService.ObterPorIdAsync(id, usuarioId);
+            if (assinatura == null)
+                return NotFound();
+            return Ok(assinatura);
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -44,20 +47,17 @@ public class AssinaturasController : ControllerBase
     }
 
     /// <summary>
-    /// Obter assinatura ativa do usuário
+    /// Atualizar assinatura
     /// </summary>
-    [HttpGet("ativa")]
-    public async Task<ActionResult<AssinaturaResponse>> ObterAssinaturaAtiva()
+    [HttpPut("{id}")]
+    public async Task<ActionResult<AssinaturaResponse>> AtualizarAssinatura(Guid id, [FromBody] AtualizarAssinaturaRequest request)
     {
         try
         {
             var usuarioId = ObterUsuarioId();
-            var userRole = User.FindFirst("role")?.Value;
-            var assinatura = await _assinaturaService.ObterAtivaAsync(usuarioId, usuarioId, userRole);
-            
+            var assinatura = await _assinaturaService.AtualizarAsync(id, request, usuarioId);
             if (assinatura == null)
-                return NotFound("Nenhuma assinatura ativa encontrada");
-                
+                return NotFound();
             return Ok(assinatura);
         }
         catch (UnauthorizedAccessException ex)
@@ -79,9 +79,8 @@ public class AssinaturasController : ControllerBase
         try
         {
             var usuarioId = ObterUsuarioId();
-            var userRole = User.FindFirst("role")?.Value;
             var assinatura = await _assinaturaService.CriarAsync(request, usuarioId);
-            return CreatedAtAction(nameof(ObterAssinaturaAtiva), assinatura);
+            return CreatedAtAction(nameof(ObterPorId), new { id = assinatura.Id }, assinatura);
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -98,21 +97,20 @@ public class AssinaturasController : ControllerBase
     }
 
     /// <summary>
-    /// Cancelar assinatura
+    /// Remover assinatura
     /// </summary>
-    [HttpPost("{id}/cancelar")]
-    public async Task<ActionResult> CancelarAssinatura(Guid id)
+    [HttpDelete("{id}")]
+    public async Task<ActionResult> RemoverAssinatura(Guid id)
     {
         try
         {
             var usuarioId = ObterUsuarioId();
-            var userRole = User.FindFirst("role")?.Value;
-            var sucesso = await _assinaturaService.CancelarAsync(id, usuarioId, userRole);
+            var sucesso = await _assinaturaService.RemoverAsync(id, usuarioId);
             
             if (!sucesso)
                 return NotFound("Assinatura não encontrada");
                 
-            return Ok(new { message = "Assinatura cancelada com sucesso" });
+            return Ok(new { message = "Assinatura removida com sucesso" });
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -128,47 +126,16 @@ public class AssinaturasController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Renovar assinatura
-    /// </summary>
-    [HttpPost("{id}/renovar")]
-    public async Task<ActionResult> RenovarAssinatura(Guid id)
-    {
-        try
-        {
-            var usuarioId = ObterUsuarioId();
-            var userRole = User.FindFirst("role")?.Value;
-            var sucesso = await _assinaturaService.RenovarAsync(id, usuarioId, userRole);
-            
-            if (!sucesso)
-                return NotFound("Assinatura não encontrada");
-                
-            return Ok(new { message = "Assinatura renovada com sucesso" });
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            return Forbid(ex.Message);
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(ex.Message);
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, new { message = "Erro interno no servidor", error = ex.Message });
-        }
-    }
 
     /// <summary>
-    /// Listar todas as assinaturas (apenas Admin)
+    /// Listar todas as assinaturas
     /// </summary>
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<AssinaturaAdminResponse>>> ListarTodasAssinaturas()
+    public async Task<ActionResult<IEnumerable<AssinaturaResponse>>> ListarTodasAssinaturas()
     {
         try
         {
-            var userRole = User.FindFirst("role")?.Value;
-            var assinaturas = await _assinaturaService.ObterTodasAsync(userRole);
+            var assinaturas = await _assinaturaService.ObterTodasAsync();
             return Ok(assinaturas);
         }
         catch (UnauthorizedAccessException ex)
@@ -181,25 +148,42 @@ public class AssinaturasController : ControllerBase
         }
     }
 
+
     /// <summary>
-    /// Obter relatório de MRR (apenas Admin)
+    /// Processar ciclo de assinaturas (trials expirados, renovações, etc.)
     /// </summary>
-    [HttpGet("relatorio/mrr")]
-    public async Task<ActionResult<decimal>> ObterMRR()
+    [HttpPost("processar-ciclo")]
+    public async Task<ActionResult> ProcessarCicloAssinaturas()
     {
         try
         {
-            var userRole = User.FindFirst("role")?.Value;
-            var mrr = await _assinaturaService.CalcularMRRAsync(userRole);
-            return Ok(new { mrr = mrr, periodo = DateTime.UtcNow.ToString("yyyy-MM") });
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            return Forbid(ex.Message);
+            await _assinaturaService.ProcessarTrialsExpiradosAsync();
+            await _assinaturaService.ProcessarRenovacoesAutomaticasAsync();
+            await _assinaturaService.ProcessarCancelamentosAsync();
+            
+            return Ok(new { message = "Ciclo de assinaturas processado com sucesso" });
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "Erro interno no servidor", error = ex.Message });
+            return StatusCode(500, new { message = "Erro ao processar ciclo", error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// TESTE: Simular trial expirado (modificar data para ontem)
+    /// </summary>
+    [HttpPost("{id}/simular-trial-expirado")]
+    public async Task<ActionResult> SimularTrialExpirado(Guid id)
+    {
+        try
+        {
+            var usuarioId = ObterUsuarioId();
+            await _assinaturaService.SimularTrialExpiradoAsync(id, usuarioId);
+            return Ok(new { message = "Trial simulado como expirado" });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Erro ao simular trial", error = ex.Message });
         }
     }
 

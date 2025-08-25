@@ -12,7 +12,7 @@ namespace TechSub.WebAPI.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+
 public class UsuariosController : ControllerBase
 {
     private readonly IUsuarioService _usuarioService;
@@ -25,8 +25,7 @@ public class UsuariosController : ControllerBase
     /// <summary>
     /// Obtém todos os usuários (apenas admins)
     /// </summary>
-    [HttpGet]
-    [Authorize(Roles = "Admin")]
+    [HttpGet]    
     public async Task<IActionResult> ObterTodos()
     {
         try
@@ -112,50 +111,6 @@ public class UsuariosController : ControllerBase
             }
 
             return Ok(new { message = "Usuário desativado com sucesso" });
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, new { message = "Erro interno no servidor", error = ex.Message });
-        }
-    }
-
-    /// <summary>
-    /// Obtém perfil do usuário autenticado
-    /// </summary>
-    [HttpGet("perfil")]
-    public async Task<IActionResult> ObterPerfil()
-    {
-        try
-        {
-            var usuarioId = ObterUsuarioId();
-            var perfil = await _usuarioService.ObterPerfilAsync(usuarioId);
-        
-            if (perfil == null)
-                return NotFound();
-
-            return Ok(perfil);
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, new { message = "Erro interno no servidor", error = ex.Message });
-        }
-    }
-
-    /// <summary>
-    /// Obtém estatísticas de usuários (apenas Admin)
-    /// </summary>
-    [HttpGet("estatisticas")]
-    public async Task<IActionResult> ObterEstatisticas()
-    {
-        try
-        {
-            var userRole = User.FindFirst("role")?.Value;
-            var estatisticas = await _usuarioService.ObterEstatisticasAsync(userRole);
-            return Ok(estatisticas);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            return Forbid(ex.Message);
         }
         catch (Exception ex)
         {

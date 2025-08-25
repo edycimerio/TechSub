@@ -52,9 +52,9 @@ public class PagamentoService : IPagamentoService
     }
 
     /// <summary>
-    /// Obtém todos os pagamentos (admin)
+    /// Obtém todos os pagamentos
     /// </summary>
-    public async Task<IEnumerable<PagamentoResponse>> ObterTodosAsync(string? userRole, string? status = null, DateTime? dataInicio = null, DateTime? dataFim = null)
+    public async Task<IEnumerable<PagamentoResponse>> ObterTodosAsync(string? status = null, DateTime? dataInicio = null, DateTime? dataFim = null)
     {
         var pagamentos = await _pagamentoRepository.ObterTodosAsync();
         
@@ -211,7 +211,7 @@ public class PagamentoService : IPagamentoService
     /// <summary>
     /// Obtém estatísticas de pagamentos
     /// </summary>
-    public async Task<object> ObterEstatisticasAsync(string? userRole)
+    public async Task<object> ObterEstatisticasAsync()
     {
         var pagamentos = await _pagamentoRepository.ObterTodosAsync();
         var hoje = DateTime.UtcNow.Date;

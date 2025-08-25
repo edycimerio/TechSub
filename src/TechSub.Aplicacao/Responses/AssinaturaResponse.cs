@@ -10,6 +10,7 @@ public class AssinaturaResponse
     public Guid PlanoId { get; set; }
     public string PlanoNome { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
+    public string Periodicidade { get; set; } = string.Empty;
     public bool EmTrial { get; set; }
     public DateTime DataInicio { get; set; }
     public DateTime? DataTermino { get; set; }

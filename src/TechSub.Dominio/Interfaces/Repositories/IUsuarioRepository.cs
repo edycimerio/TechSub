@@ -22,10 +22,6 @@ public interface IUsuarioRepository
     /// </summary>
     Task<Usuario?> ObterPorEmailAsync(string email);
 
-    /// <summary>
-    /// Obtém usuário por Google ID
-    /// </summary>
-    Task<Usuario?> ObterPorGoogleIdAsync(string googleId);
 
     /// <summary>
     /// Adiciona novo usuário

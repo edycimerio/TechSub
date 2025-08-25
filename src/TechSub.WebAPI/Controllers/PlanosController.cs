@@ -11,6 +11,7 @@ namespace TechSub.WebAPI.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public class PlanosController : ControllerBase
 {
     private readonly IPlanoService _planoService;
@@ -57,46 +58,17 @@ public class PlanosController : ControllerBase
             return StatusCode(500, new { message = "Erro interno no servidor", error = ex.Message });
         }
     }
-
+        
     /// <summary>
-    /// Obtém todos os planos incluindo inativos (apenas admins)
-    /// </summary>
-    [HttpGet("admin/todos")]
-    [Authorize(Roles = "Admin")]
-    public async Task<IActionResult> ObterTodosPlanos()
-    {
-        try
-        {
-            var userRole = User.FindFirst("role")?.Value;
-            var planos = await _planoService.ObterTodosAsync(userRole);
-            return Ok(planos);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            return Forbid(ex.Message);
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, new { message = "Erro interno no servidor", error = ex.Message });
-        }
-    }
-
-    /// <summary>
-    /// Cria um novo plano (apenas admins)
+    /// Cria um novo plano
     /// </summary>
     [HttpPost]
-    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> CriarPlano([FromBody] CriarPlanoRequest dto)
     {
         try
         {
-            var userRole = User.FindFirst("role")?.Value;
-            var plano = await _planoService.CriarAsync(dto, userRole);
+            var plano = await _planoService.CriarAsync(dto);
             return CreatedAtAction(nameof(ObterPorId), new { id = plano.Id }, plano);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            return Forbid(ex.Message);
         }
         catch (InvalidOperationException ex)
         {
@@ -109,25 +81,19 @@ public class PlanosController : ControllerBase
     }
 
     /// <summary>
-    /// Atualiza um plano existente (apenas admins)
+    /// Atualiza um plano existente
     /// </summary>
     [HttpPut("{id}")]
-    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> AtualizarPlano(Guid id, [FromBody] AtualizarPlanoRequest dto)
     {
         try
         {
-            var userRole = User.FindFirst("role")?.Value;
-            var plano = await _planoService.AtualizarAsync(id, dto, userRole);
+            var plano = await _planoService.AtualizarAsync(id, dto);
             if (plano == null)
                 return NotFound();
 
             return Ok(plano);
         }
-        catch (UnauthorizedAccessException ex)
-        {
-            return Forbid(ex.Message);
-        }
         catch (InvalidOperationException ex)
         {
             return BadRequest(new { message = ex.Message });
@@ -139,25 +105,19 @@ public class PlanosController : ControllerBase
     }
 
     /// <summary>
-    /// Remove um plano (apenas admins)
+    /// Remove um plano
     /// </summary>
     [HttpDelete("{id}")]
-    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> RemoverPlano(Guid id)
     {
         try
         {
-            var userRole = User.FindFirst("role")?.Value;
-            var sucesso = await _planoService.RemoverAsync(id, userRole);
+            var sucesso = await _planoService.RemoverAsync(id);
             
             if (!sucesso)
                 return NotFound(new { message = "Plano não encontrado" });
 
             return Ok(new { message = "Plano removido com sucesso" });
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            return Forbid(ex.Message);
         }
         catch (InvalidOperationException ex)
         {

@@ -124,6 +124,14 @@ public class AssinaturaRepository : IAssinaturaRepository
         return await CalcularMrrAsync(hoje.Month, hoje.Year);
     }
 
+    public async Task<IEnumerable<Assinatura>> ObterTodasComUsuarioEPlanoAsync()
+    {
+        return await _context.Assinaturas
+            .Include(a => a.Usuario)
+            .Include(a => a.Plano)
+            .ToListAsync();
+    }
+
     public async Task<IEnumerable<Assinatura>> ObterTodasAsync()
     {
         return await _context.Assinaturas
@@ -171,6 +179,14 @@ public class AssinaturaRepository : IAssinaturaRepository
             .ToListAsync();
     }
 
+    public async Task<IEnumerable<Assinatura>> ObterDadosMRRAsync()
+    {
+        return await _context.Assinaturas
+            .Include(a => a.Plano)
+            .Where(a => a.Status == StatusAssinatura.Ativa)
+            .ToListAsync();
+    }
+
     public async Task<object> ObterRelatorioAsync()
     {
         var hoje = DateTime.UtcNow;
@@ -191,7 +207,8 @@ public class AssinaturaRepository : IAssinaturaRepository
         return await _context.Assinaturas
             .Include(a => a.Plano)
             .Include(a => a.Usuario)
-            .FirstOrDefaultAsync(a => a.UsuarioId == usuarioId && a.Status == StatusAssinatura.Ativa);
+            .FirstOrDefaultAsync(a => a.UsuarioId == usuarioId && 
+                (a.Status == StatusAssinatura.Ativa || a.Status == StatusAssinatura.Trial));
     }
 
     public async Task<IEnumerable<Assinatura>> ObterRelatorioAsync(DateTime dataInicio, DateTime dataFim)

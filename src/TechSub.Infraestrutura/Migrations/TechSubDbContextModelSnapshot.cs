@@ -110,6 +110,10 @@ namespace TechSub.Infraestrutura.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<string>("MotivoFalha")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
                     b.Property<int>("Status")
                         .HasColumnType("integer");
 
@@ -193,8 +197,8 @@ namespace TechSub.Infraestrutura.Migrations
                         {
                             Id = new Guid("11111111-1111-1111-1111-111111111111"),
                             Ativo = true,
-                            DataAtualizacao = new DateTime(2025, 8, 23, 19, 30, 27, 931, DateTimeKind.Utc).AddTicks(7290),
-                            DataCriacao = new DateTime(2025, 8, 23, 19, 30, 27, 931, DateTimeKind.Utc).AddTicks(7290),
+                            DataAtualizacao = new DateTime(2025, 8, 24, 22, 7, 17, 214, DateTimeKind.Utc).AddTicks(5870),
+                            DataCriacao = new DateTime(2025, 8, 24, 22, 7, 17, 214, DateTimeKind.Utc).AddTicks(5870),
                             Descricao = "Plano gratuito com recursos básicos",
                             DiasTrialGratuito = 0,
                             Nome = "Free",
@@ -208,8 +212,8 @@ namespace TechSub.Infraestrutura.Migrations
                         {
                             Id = new Guid("22222222-2222-2222-2222-222222222222"),
                             Ativo = true,
-                            DataAtualizacao = new DateTime(2025, 8, 23, 19, 30, 27, 931, DateTimeKind.Utc).AddTicks(7297),
-                            DataCriacao = new DateTime(2025, 8, 23, 19, 30, 27, 931, DateTimeKind.Utc).AddTicks(7296),
+                            DataAtualizacao = new DateTime(2025, 8, 24, 22, 7, 17, 214, DateTimeKind.Utc).AddTicks(5877),
+                            DataCriacao = new DateTime(2025, 8, 24, 22, 7, 17, 214, DateTimeKind.Utc).AddTicks(5877),
                             Descricao = "Plano básico para pequenas equipes",
                             DiasTrialGratuito = 7,
                             Nome = "Basic",
@@ -223,8 +227,8 @@ namespace TechSub.Infraestrutura.Migrations
                         {
                             Id = new Guid("33333333-3333-3333-3333-333333333333"),
                             Ativo = true,
-                            DataAtualizacao = new DateTime(2025, 8, 23, 19, 30, 27, 931, DateTimeKind.Utc).AddTicks(7300),
-                            DataCriacao = new DateTime(2025, 8, 23, 19, 30, 27, 931, DateTimeKind.Utc).AddTicks(7300),
+                            DataAtualizacao = new DateTime(2025, 8, 24, 22, 7, 17, 214, DateTimeKind.Utc).AddTicks(5881),
+                            DataCriacao = new DateTime(2025, 8, 24, 22, 7, 17, 214, DateTimeKind.Utc).AddTicks(5880),
                             Descricao = "Plano profissional para empresas",
                             DiasTrialGratuito = 7,
                             Nome = "Pro",
@@ -248,6 +252,10 @@ namespace TechSub.Infraestrutura.Migrations
                     b.Property<bool>("Ativo")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("AvatarUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
                     b.Property<DateTime>("DataAtualizacao")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -258,14 +266,13 @@ namespace TechSub.Infraestrutura.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasDefaultValueSql("NOW()");
 
+                    b.Property<DateTime?>("DataUltimoLogin")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
-
-                    b.Property<string>("HashSenha")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
 
                     b.Property<string>("Nome")
                         .IsRequired()
@@ -280,6 +287,15 @@ namespace TechSub.Infraestrutura.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
 
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("SenhaHash")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("AssinaturaAtivaId")
@@ -289,6 +305,25 @@ namespace TechSub.Infraestrutura.Migrations
                         .IsUnique();
 
                     b.ToTable("Usuarios");
+                });
+
+            modelBuilder.Entity("TechSub.Dominio.Entidades.UsuarioMetodoPagamento", b =>
+                {
+                    b.Property<Guid>("UsuarioId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("TemMetodoPagamento")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("UsuarioId1")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("UsuarioId");
+
+                    b.HasIndex("UsuarioId1");
+
+                    b.ToTable("UsuarioMetodoPagamento");
                 });
 
             modelBuilder.Entity("TechSub.Dominio.Entidades.Assinatura", b =>
@@ -329,6 +364,17 @@ namespace TechSub.Infraestrutura.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("AssinaturaAtiva");
+                });
+
+            modelBuilder.Entity("TechSub.Dominio.Entidades.UsuarioMetodoPagamento", b =>
+                {
+                    b.HasOne("TechSub.Dominio.Entidades.Usuario", "Usuario")
+                        .WithMany()
+                        .HasForeignKey("UsuarioId1")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Usuario");
                 });
 
             modelBuilder.Entity("TechSub.Dominio.Entidades.Assinatura", b =>

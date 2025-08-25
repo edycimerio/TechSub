@@ -394,6 +394,9 @@ secrets.json
 appsettings.Development.json
 appsettings.Local.json
 
+# Configuration files with sensitive data
+appsettings.json
+
 # Database files
 *.db
 *.sqlite
